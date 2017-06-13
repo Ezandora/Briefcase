@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.1";
+string __briefcase_version = "1.0.3";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -1577,7 +1577,7 @@ int discoverButtonWithFunctionID(int function_id)
 	actionSetHandleTo(true);
 	int value_wanted = __button_functions[function_id];
 	
-	int breakout = 21;
+	int breakout = 23;
 	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
 		breakout -= 1;
@@ -1598,7 +1598,6 @@ int discoverButtonWithFunctionID(int function_id)
 			//FIXME implement this - subtract 100 first.
 			abort("FIXME - can't discover");
 		}
-		//FIXME implement this
 		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
 		foreach button_id in valid_button_functions
@@ -1640,7 +1639,7 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
 			return;
 			
 		int delta = desired_base_ten_number - current_number;
-		printSilent("desired_base_ten_number = " + desired_base_ten_number + " current_number = " + current_number + " delta = " + delta);
+		//printSilent("desired_base_ten_number = " + desired_base_ten_number + " current_number = " + current_number + " delta = " + delta);
 		
 		if (delta > 50 || desired_base_ten_number == 728)
 		{
@@ -1745,7 +1744,7 @@ void collectSplendidMartinis()
 		}
 		else
 		{
-			printSilent("Can't collect splendid martinis for some reason.", "red");
+			printSilent("Can't collect splendid martinis. Maybe out of clicks?", "red");
 			return;
 		}
 	}
