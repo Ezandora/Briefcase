@@ -3,6 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 string __briefcase_version = "1.0a5";
+boolean __enable_debug_output = false;
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -458,7 +459,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 			continue;
 		state.last_action_results[result] = true;
 	}
-	if (state.last_action_results.count() > 0)
+	if (state.last_action_results.count() > 0 && __enable_debug_output)
 		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"", "gray");
 	
 	//Do some post-processing:
@@ -1377,7 +1378,7 @@ int [int] discoverTabPermutation()
 	{
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
-		printSilent("valid_button_functions = " + valid_button_functions.to_json());
+		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
 		foreach button_actual_id in valid_button_functions
 		{
@@ -1676,6 +1677,7 @@ void lightThirdLight()
 
 void collectSplendidMartinis()
 {
+	//FIXME don't do this if we don't have enough clicks for the day?
 	discoverButtonWithFunctionID(5); //100
 	unlockMartiniHose();
 	for i from 1 to 3
@@ -2164,43 +2166,6 @@ void main(string command)
 		if (possible_lightrings_values.count() < 100)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 	}
-	
-	
-	//Secret undocumented commands:
-	if (command == "test")
-	{
-		actionSetHandleTo(true);
-		actionPressButton(3);
-		//actionPressTab(4);
-	}
-	if (command == "test_dials")
-	{
-		int [int] dial_configuration = {2, 8, 1, 7, 3, 4};
-		actionSetDialsTo(dial_configuration);
-		//actionPressRightActuator();
-	}
-	if (command == "test_converter")
-	{
-		for i from 0 to 11 * 11 * 11 - 1
-		{
-			mastermindRawCodeToList(i);
-		}
-	}
-	if (command == "random")
-	{
-		//monkey pull lever, monkey get banana
-		for i from 1 to 22
-		{
-			actionPressButton(random(6) + 1);
-		}
-	}
-	if (command == "test_blinking")
-	{
-		int [int] first = {1,0,3};
-		int [int] second = {0,1,2};
-		printSilent("??? " + mastermindBlinkingCountForCodes(first, second));
-	}
-	
 	
 	//After all that, do other stuff:
 	//Collect drawers:
