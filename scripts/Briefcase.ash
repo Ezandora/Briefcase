@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a7";
+string __briefcase_version = "1.0a8";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -1409,7 +1409,7 @@ int [int] discoverTabPermutation()
 			int [int] blank;
 			return blank;
 		}
-		abort("next_chosen_button = " + next_chosen_button);
+		//abort("next_chosen_button = " + next_chosen_button);
 		actionPressButton(next_chosen_button + 1);
 		//break;
 		//abort("write me " + next_chosen_button);
