@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a6";
+string __briefcase_version = "1.0a7";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -520,7 +520,8 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	{
 		printSIlent("Reset detected.");
 		string [string] saved_values;
-		boolean [string] properties_to_save = $strings[_clicks,button tab log,_flywheel charged];
+		//FIXME we could save button tab log, except what if that's wrong?
+		boolean [string] properties_to_save = $strings[_clicks,_flywheel charged];
 		foreach key in properties_to_save
 			saved_values[key] = __file_state[key];
 		
@@ -1376,19 +1377,30 @@ int [int] discoverTabPermutation()
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
 	actionSetHandleTo(true);
 	int breakout = 111;
+	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+	{
+		printSilent("We can't discover tab permutations after you've solved the third light, yet. Sorry.");
+		int [int] blank;
+		return blank;
+	}
 	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
-		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
+		printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
 		foreach button_actual_id in valid_button_functions
 		{
 			//foreach key, button_functional_id
 			if (valid_button_functions[button_actual_id][5]) //100
 			{
+				if (next_chosen_button != -1)
+				{
+					if (valid_button_functions[next_chosen_button].count() < valid_button_functions[button_actual_id].count())
+						continue;
+				}
 				next_chosen_button = button_actual_id;
-				break;
+				//break;
 			}
 		}
 		if (next_chosen_button == -1)
@@ -1397,7 +1409,7 @@ int [int] discoverTabPermutation()
 			int [int] blank;
 			return blank;
 		}
-		//abort("next_chosen_button = " + next_chosen_button);
+		abort("next_chosen_button = " + next_chosen_button);
 		actionPressButton(next_chosen_button + 1);
 		//break;
 		//abort("write me " + next_chosen_button);
@@ -2080,6 +2092,8 @@ void main(string command)
 		outputStatus();
 		return;
 	}
+	if (command == "discover")
+		discoverTabPermutation();
 	
 	//Do things we should always do:
 	lightFirstLight();
