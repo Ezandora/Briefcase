@@ -1,7 +1,7 @@
 //Briefcase.ash
 //Usage: briefcase help in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a1";
+string __briefcase_version = "1.0a2";
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -451,7 +451,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		state.last_action_results[result] = true;
 	}
 	if (state.last_action_results.count() > 0)
-		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"");
+		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"", "grey");
 	
 	//Do some post-processing:
 	if (state.last_action_results["Click!"])
@@ -898,8 +898,10 @@ void lightSecondLight()
 	boolean [int] states_already_tested_right;
 	boolean left_side_solved = false;
 	boolean right_side_solved = false;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[2] != LIGHT_STATE_ON)
+	int breakout = 111;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[2] != LIGHT_STATE_ON && breakout > 0)
 	{
+		breakout -= 1;
 		//Calculate remaining possible choices:
 		//At the moment, just pick one at random:
 		//By random, I mean the one with the most unique digits. Sure, why not?
@@ -1403,8 +1405,10 @@ int [int] discoverTabPermutation()
 {
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
 	actionSetHandleTo(true);
-	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean())
+	int breakout = 111;
+	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
+		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
 		printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
@@ -1552,8 +1556,10 @@ int discoverButtonWithFunctionID(int function_id)
 	actionSetHandleTo(true);
 	int value_wanted = __button_functions[function_id];
 	
-	while (!__file_state["_out of clicks for the day"].to_boolean())
+	int breakout = 111;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
+		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
 		for i from 1 to 6
 		{
@@ -1604,8 +1610,10 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
 	discoverTabPermutation();
 	
 	actionSetHandleTo(true);
-	while (!__file_state["_out of clicks for the day"].to_boolean())
+	int breakout = 111;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
+		breakout -= 1;
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
 		if (current_number == desired_base_ten_number)
 			return;
@@ -1676,8 +1684,10 @@ void lightThirdLight()
 	//First, calculate permutation / what the buttons do:
 	//Should we solve all six buttons? Yes?
 	
-	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON)
+	int breakout = 111;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON && breakout > 0)
 	{
+		breakout -= 1;
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues();
 		printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 		if (possible_lightrings_values.count() == 0)
