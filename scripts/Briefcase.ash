@@ -1,5 +1,6 @@
+since r18080;
 //Briefcase.ash
-//Usage: briefcase help in the graphical CLI.
+//Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 string __briefcase_version = "1.0a4";
 
@@ -451,7 +452,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		state.last_action_results[result] = true;
 	}
 	if (state.last_action_results.count() > 0)
-		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"", "grey");
+		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"", "gray");
 	
 	//Do some post-processing:
 	if (state.last_action_results["Click!"])
@@ -567,47 +568,6 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 			writeFileState();
 		}
 	}
-	//Parsed:
-	/*boolean turning_crank = false;
-	boolean nothing_seemed_to_happen = false;
-	
-	//How do we want to do this?
-	//Do we just save results somewhere, and let them handle it?
-	//That seems safer, doesn't it?
-	string [int] unparsed_results;
-	foreach key, result in results
-	{
-		if (result == "You grab your KGB.")
-			continue;
-		if (result == "You turn the crank.")
-		{
-			turning_crank = true;
-			continue;
-		}
-		if (result = "")
-			continue;
-		if (result == "Nothing seems to happen.")
-		{
-			nothing_seemed_to_happen = true;
-			continue;
-		}
-		
-		unparsed_results.listAppend(result);
-	}
-	if (unparsed_results.count() > 0)
-		printSilent("Unparsed results: \"" + unparsed_results.listJoinComponents("\" / \"").entity_encode() + "\".", "red");
-		
-	//Make conclusions:
-	if (turning_crank)
-	{
-		if (nothing_seemed_to_happen)
-		{
-			if (state.handle_up)
-			{
-				state.
-			}
-		}
-	}*/
 	
 	return state;
 }
@@ -718,7 +678,7 @@ void actionCollectMartiniHose()
 {
 	printSilent("Collecting from martini hose.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_dispenser", false, false));
-	if (__state.last_action_results["Hmm. Nothing happens. Looks like it's out of juice for today."]);
+	if (__state.last_action_results["Hmm. Nothing happens. Looks like it's out of juice for today."])
 	{
 		__file_state["_martini hose collected"] = 3;
 		writeFileState();
@@ -904,7 +864,7 @@ void lightSecondLight()
 		breakout -= 1;
 		//Calculate remaining possible choices:
 		//At the moment, just pick one at random:
-		//By random, I mean the one with the most unique digits. Sure, why not?
+		//By random, I mean the one with the most unique digits.
 		//Enter that code:
 		//Try it:
 		//Save that light configuration:
@@ -1874,6 +1834,14 @@ void outputStatus()
 	}
 	if (buttons_line.count() > 0)
 		printSilent("Buttons: " + buttons_line.listJoinComponents(", "));
+	if (__file_state["lightrings target number"] != "")
+		printSilent("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
+}
+
+void recalculateVarious()
+{
+	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
+		calculatePossibleLightringsValues();
 }
 
 void main(string command)
@@ -1893,6 +1861,7 @@ void main(string command)
 	
 	buffer page_text = visit_url("place.php?whichplace=kgb");
 	updateState(page_text);
+	recalculateVarious();
 	
 	//printSilent("__state = " + __state.to_json());
 	if (command == "status")
@@ -2028,7 +1997,7 @@ void main(string command)
 	{
 		actionCollectRightDrawer();
 	}
-	
+	print("Done.");
 }
 
 /*
