@@ -1,7 +1,7 @@
 //Briefcase.ash
 //Usage: briefcase help in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a3";
+string __briefcase_version = "1.0a4";
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -1827,7 +1827,7 @@ void outputHelp()
 {
 	printSilent("Briefcase.ash v" + __briefcase_version + ". Commands:");
 	printSilent("");
-	printSilent("<strong>unlock</strong> - unlocks everything we know how to unlock.");
+	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
 	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
 	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
 	printSilent("<strong>status</strong> - shows current briefcase status");
@@ -1835,7 +1835,7 @@ void outputHelp()
 	printSilent("");
 	printSilent("<strong>drawers</strong> or <strong>left</strong> or <strong>right</strong> - unlocks all/left/right drawers");
 	printSilent("<strong>hose</strong> - unlocks martini hose");
-	printSilent("<strong>epic</strong> - acquires three splendid martinis");
+	printSilent("<strong>drink</strong> - acquires three splendid martinis");
 	printSilent("");
 	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
 	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
@@ -1966,7 +1966,7 @@ void main(string command)
 	{
 		lightThirdLight();
 	}
-	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis")
+	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink")
 	{
 		//Increment tabs to 222222, collect splendid martinis:
 		collectSplendidMartinis();
