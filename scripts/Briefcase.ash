@@ -2,9 +2,10 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.3";
+string __briefcase_version = "1.0.4";
 boolean __enable_debug_output = false;
 
+boolean __confirm_actions_that_will_use_a_click = false;
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
 //So, add spaces every so often if we need them:
@@ -643,14 +644,16 @@ void actionSetDialsTo(int [int] dial_configuration)
 void actionPressLeftActuator()
 {
 	printSilent("Clicking left actuator...");
-	//CLICK tracking
+	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator1", false, false), ACTION_TYPE_LEFT_ACTUATOR, -1);
 }
 
 void actionPressRightActuator()
 {
 	printSilent("Clicking right actuator...");
-	//CLICK tracking
+	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator2", false, false), ACTION_TYPE_RIGHT_ACTUATOR, -1);
 }
 
@@ -678,12 +681,16 @@ void actionTurnCrank()
 void actionPressButton(int button_id) //1 through 6
 {
 	printSilent("Pressing button " + button_id + ".");
+	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
 }
 
 void actionPressTab(int tab_id)
 {
 	printSilent("Pressing tab " + tab_id + ".");
+	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false));
 }
 
@@ -1384,7 +1391,8 @@ boolean [int][int] calculateTabs()
 	if (valid_permutations.count() == 1)
 	{
 		int [int] valid_permutation = valid_permutations[0];
-		printSilent("Found valid permutation: " + valid_permutation.listJoinComponents(", "));
+		if (__file_state["tab permutation"] == "")
+			printSilent("Found valid permutation: " + valid_permutation.listJoinComponents(", "));
 		__file_state["tab permutation"] = valid_permutation.listJoinComponents(",");
 		writeFileState();
 	}
@@ -1425,11 +1433,22 @@ int [int] discoverTabPermutation(boolean allow_actions)
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
 		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
+		
+		int chosen_function_id_to_use = 5; //100
+		
+		int two_count = 0;
+		foreach i, value in __state.tab_configuration
+		{
+			if (value == 2)
+				two_count++;
+		}
+		if (two_count >= 5) //the number is almost certainly too high
+			chosen_function_id_to_use = 2; //-10. not ideal, but prevents ping-ponging
 		int next_chosen_button = -1;
 		foreach button_actual_id in valid_button_functions
 		{
 			//foreach key, button_functional_id
-			if (valid_button_functions[button_actual_id][5]) //100
+			if (valid_button_functions[button_actual_id][chosen_function_id_to_use])
 			{
 				if (next_chosen_button != -1)
 				{
