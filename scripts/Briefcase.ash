@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a4";
+string __briefcase_version = "1.0a5";
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -282,19 +282,26 @@ string BriefcaseLightDescriptionShort(int status)
 		return "?";
 }
 
+string convertDialConfigurationToString(int [int] dial_configuration)
+{
+	string out;
+	for i from 0 to 5
+	{
+		if (dial_configuration[i] == 10)
+			out += "A";
+		else
+			out += dial_configuration[i];
+		if (i == 2)
+			out += "-";
+	}
+	return out;
+}
+
 string [int] BriefcaseStateDescription(BriefcaseState state)
 {
 	string [int] description;
 	string dials_line = "Dials: ";
-	for i from 0 to 5
-	{
-		if (state.dial_configuration[i] == 10)
-			dials_line += "A";
-		else
-			dials_line += state.dial_configuration[i];
-		if (i == 2)
-			dials_line += "-";
-	}
+	dials_line += convertDialConfigurationToString(state.dial_configuration);
 	description.listAppend(dials_line);
 	
 	string horizontal_lights_line = "Horizontal lights: ";
@@ -1787,6 +1794,7 @@ void outputHelp()
 {
 	printSilent("Briefcase.ash v" + __briefcase_version + ". Commands:");
 	printSilent("");
+	printSilent("<strong>enchantment</strong> or <strong>e</strong> - changes briefcase enchantment (type \"briefcase enchantment\" for more information.)");
 	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
 	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
 	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
@@ -1810,6 +1818,12 @@ void outputStatus()
 		printSilent(s);
 	if (__file_state["_flywheel charged"].to_boolean())
 		printSilent("Flywheel charged.");
+	if (__file_state["lightrings target number"] != "")
+		printSilent("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
+	if (__file_state["initial dial configuration"] != "")
+	{
+		printSilent("Initial dial configuration: " + convertDialConfigurationToString(stringToIntIntList(__file_state["initial dial configuration"])));
+	}
 	
 	if (__file_state["tab permutation"] != "")
 	{
@@ -1834,14 +1848,208 @@ void outputStatus()
 	}
 	if (buttons_line.count() > 0)
 		printSilent("Buttons: " + buttons_line.listJoinComponents(", "));
-	if (__file_state["lightrings target number"] != "")
-		printSilent("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
 }
 
 void recalculateVarious()
 {
 	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
 		calculatePossibleLightringsValues();
+}
+
+int [int] __briefcase_enchantments; //slot -> enchantment, in order
+void parseBriefcaseEnchantments()
+{
+	for i from 0 to 2
+		__briefcase_enchantments[i] = -1;
+	printSilent("Viewing briefcase enchantments.");
+	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
+	
+	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
+	foreach key, enchantment in enchantments
+	{
+		if (enchantment == "Weapon Damage +25%")
+			__briefcase_enchantments[0] = 0;
+		else if (enchantment == "Spell Damage +50%")
+			__briefcase_enchantments[0] = 1;
+		else if (enchantment == "+5 <font color=red>Hot Damage</font>")
+			__briefcase_enchantments[0] = 2;
+		else if (enchantment == "+10% chance of Critical Hit")
+			__briefcase_enchantments[0] = 3;
+		else if (enchantment == "+25% Combat Initiative")
+			__briefcase_enchantments[1] = 0;
+		else if (enchantment == "Damage Absorption +100")
+			__briefcase_enchantments[1] = 1;
+		else if (enchantment == "Superhuman Hot Resistance (+5)")
+			__briefcase_enchantments[1] = 2;
+		else if (enchantment == "Superhuman Cold Resistance (+5)")
+			__briefcase_enchantments[1] = 3;
+		else if (enchantment == "Superhuman Spooky Resistance (+5)")
+			__briefcase_enchantments[1] = 4;
+		else if (enchantment == "Superhuman Stench  Resistance (+5)") //that extra space is only for this enchantment
+			__briefcase_enchantments[1] = 5;
+		else if (enchantment == "Superhuman Sleaze Resistance (+5)")
+			__briefcase_enchantments[1] = 6;
+		else if (enchantment == "Regenerate 5-10 MP per Adventure")
+			__briefcase_enchantments[2] = 0;
+		else if (enchantment == "+5 Adventure(s) per day")
+			__briefcase_enchantments[2] = 1;
+		else if (enchantment == "+5 PvP Fight(s) per day")
+			__briefcase_enchantments[2] = 2;
+		else if (enchantment == "Monsters will be less attracted to you")
+			__briefcase_enchantments[2] = 3;
+		else if (enchantment == "Monsters will be more attracted to you")
+			__briefcase_enchantments[2] = 4;
+		else if (enchantment == "+25 to Monster Level")
+			__briefcase_enchantments[2] = 5;
+		else if (enchantment == "-3 MP to use Skills")
+			__briefcase_enchantments[2] = 6;
+	}
+	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
+	{
+		printSilent("__briefcase_enchantments = " + __briefcase_enchantments.to_json());
+		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents(", ", "and").entity_encode());
+	}
+}
+
+string decorateEnchantmentOutput(string word, int slot_id, int id)
+{
+	string output = "<strong>";
+	if (__briefcase_enchantments[slot_id] == id)
+		output += "<font color=\"red\">";
+	output += word;
+	if (__briefcase_enchantments[slot_id] == id)
+		output += "</font>";
+	output += "</strong>";
+	return output;
+}
+
+void handleEnchantmentCommand(string command)
+{
+	string [int] words = command.split_string(" ");
+	
+	parseBriefcaseEnchantments();
+	if (words.count() < 2)
+	{
+		printSilent("The enchantment command lets you modify the enchantment on the briefcase. This costs daily clicks, and resets upon ascending.");
+		printSilent("Available enchantment slots:");
+		printSilent("");
+		printSilent("Slot 1:");
+		printSilent(decorateEnchantmentOutput("weapon", 0, 0) + ": +25% weapon damage");
+		printSilent(decorateEnchantmentOutput("spell", 0, 1) + ": +50% spell damage");
+		printSilent(decorateEnchantmentOutput("prismatic", 0, 2) + ": +5 prismatic damage");
+		printSilent(decorateEnchantmentOutput("critical", 0, 3) + ": +10% critical hit");
+		printSilent("");
+		printSilent("Slot 2:");
+		printSilent(decorateEnchantmentOutput("init", 1, 0) + ": +25% initiative");
+		printSilent(decorateEnchantmentOutput("absorption", 1, 1) + ": +100 Damage Absorption");
+		printSilent(decorateEnchantmentOutput("hot", 1, 2) + " or " + decorateEnchantmentOutput("cold", 1, 3) + " or " + decorateEnchantmentOutput("spooky", 1, 4) + " or " + decorateEnchantmentOutput("stench", 1, 5) + " or " + decorateEnchantmentOutput("sleaze", 1, 6) + ": +5 (type) resistance");
+		printSilent("");
+		printSilent("Slot 3:");
+		printSilent(decorateEnchantmentOutput("regen", 2, 0) + ": 5-10 HP/MP regen");
+		printSilent(decorateEnchantmentOutput("adventures", 2, 1) + ": +5 adventures/day");
+		printSilent(decorateEnchantmentOutput("fights", 2, 2) + ": +5 PvP fights/day");
+		printSilent(decorateEnchantmentOutput("-combat", 2, 3) + ": -?% combat");
+		printSilent(decorateEnchantmentOutput("+combat", 2, 4) + ": +?% combat");
+		printSilent(decorateEnchantmentOutput("ml", 2, 5) + ": +25 ML");
+		printSilent(decorateEnchantmentOutput("skills", 2, 6) + ": -3 MP to use skills");
+		
+		printSilent("");
+		printSilent("The command \"briefcase enchantment prismatic init adventures\" would give your briefcase +5 prismatic damage, +25% init, and +5 adventures/day.");
+		printSilent("\"briefcase e -combat\" would give it -combat.");
+	}
+	else
+	{	
+		outputStatus();
+		chargeFlywheel();
+		unlockButtons();
+		actionSetHandleTo(false);
+		int [int] desired_slot_configuration;
+		foreach key, word in words
+		{
+			if (key == 0) continue;
+			word = word.to_lower_case();
+			
+			if (word == "weapon")
+				desired_slot_configuration[0] = 0;
+			else if (word == "spell")
+				desired_slot_configuration[0] = 1;
+			else if (word == "prismatic" || word == "rainbow" || word == "prism")
+				desired_slot_configuration[0] = 2;
+			else if (word == "critical")
+				desired_slot_configuration[0] = 3;
+				
+			else if (word == "init" || word == "initiative")
+				desired_slot_configuration[1] = 0;
+			else if (word == "absorption" || word == "da")
+				desired_slot_configuration[1] = 1;
+			else if (word == "hot")
+				desired_slot_configuration[1] = 2;
+			else if (word == "cold")
+				desired_slot_configuration[1] = 3;
+			else if (word == "spooky")
+				desired_slot_configuration[1] = 4;
+			else if (word == "stench")
+				desired_slot_configuration[1] = 5;
+			else if (word == "sleaze")
+				desired_slot_configuration[1] = 6;
+				
+			else if (word == "regen")
+				desired_slot_configuration[2] = 0;
+			else if (word == "adventures" || word == "adventure" || word == "adv")
+				desired_slot_configuration[2] = 1;
+			else if (word == "fights" || word == "fites" || word == "fight" || word == "fite")
+				desired_slot_configuration[2] = 2;
+			else if (word == "-combat")
+				desired_slot_configuration[2] = 3;
+			else if (word == "+combat")
+				desired_slot_configuration[2] = 4;
+			else if (word == "ml" || word == "monsterlevel")
+				desired_slot_configuration[2] = 5;
+			else if (word == "skills")
+				desired_slot_configuration[2] = 6;
+		}
+		int [int] max_for_slot = {4, 7, 7};
+		int [int] base_button_for_slot = {1, 3, 5};
+		//printSilent("desired_slot_configuration = " + desired_slot_configuration.to_json());
+		foreach slot_id, id in desired_slot_configuration
+		{
+			//Set this slot:
+			int breakout = 8;
+			while (!__file_state["_out of clicks for the day"].to_boolean() && __briefcase_enchantments[slot_id] != id && breakout > 0)
+			{
+				if (__briefcase_enchantments[slot_id] == -1)
+				{
+					abort("implement parsing this specific enchantment");
+				}
+				breakout -= 1;
+				//Which direction would be ideal?
+				//Left, or right?
+				int delta_left = __briefcase_enchantments[slot_id] - id;
+				if (delta_left < 0)
+					delta_left += max_for_slot[slot_id];
+				if (delta_left >= max_for_slot[slot_id])
+					delta_left -= max_for_slot[slot_id];
+				int delta_right = id - __briefcase_enchantments[slot_id];
+				if (delta_right < 0)
+					delta_right += max_for_slot[slot_id];
+				if (delta_right >= max_for_slot[slot_id])
+					delta_right -= max_for_slot[slot_id];
+				printSilent("delta_left = " + delta_left + ", delta_right = " + delta_right);
+				//note that I internally switched these around, so "left" and "right" really mean the opposite in terms of what's on the case
+				if (delta_left < delta_right)
+				{
+					//Go left:
+					actionPressButton(base_button_for_slot[slot_id] + 1);
+				}
+				else
+				{
+					//Go right:
+					actionPressButton(base_button_for_slot[slot_id]);
+				}
+				parseBriefcaseEnchantments();
+			}
+		}
+	}
 }
 
 void main(string command)
@@ -1863,13 +2071,11 @@ void main(string command)
 	updateState(page_text);
 	recalculateVarious();
 	
-	//printSilent("__state = " + __state.to_json());
 	if (command == "status")
 	{
 		outputStatus();
 		return;
 	}
-	outputStatus();
 	
 	//Do things we should always do:
 	lightFirstLight();
@@ -1877,11 +2083,13 @@ void main(string command)
 	if (command == "charge" || command == "flywheel")
 	{
 		chargeFlywheel();
+		printSilent("Done.");
 		return;
 	}
-	if (command == "antennae" || command == "jacobs" || command == "ladder")
+	if (command == "antennae" || command == "jacobs" || command == "ladder" || command == "jacob")
 	{
 		chargeAntennae();
+		printSilent("Done.");
 		return;
 	}
 	if (command == "reset")
@@ -1892,11 +2100,18 @@ void main(string command)
 			flips = 5;
 		for i from 1 to flips
 			actionManipulateHandle();
+		printSilent("Done.");
+		return;
+	}
+	if (command.stringHasPrefix("enchantment") || command.stringHasPrefix("e ") || command == "e")
+	{
+		handleEnchantmentCommand(command);
 		return;
 	}
 	
 	chargeFlywheel();
 	
+	outputStatus();
 	if (command == "hose")
 	{
 		unlockMartiniHose();
@@ -1927,7 +2142,7 @@ void main(string command)
 		lightSecondLight();
 		lightThirdLight();
 	}
-	if (command == "second")
+	if (command == "second" || command == "mastermind")
 	{
 		lightSecondLight();
 	}
@@ -2012,3 +2227,4 @@ You press the lock actuator to the side.
 "You flip the handle down."
 Nothing happens. Hmm. Maybe it's out of... clicks?  For the day?
 */
+//"<b>-3 MP to use Skills</b></font>" / "<font color=blue><s>Regenerate 5-10 HP & MP per Adventure</s>" / "A symphony of mechanical buzzing and whirring ensues, and your case seems to be... different somehow." / "Click!" / "You press a button."
