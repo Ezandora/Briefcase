@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.4";
+string __briefcase_version = "1.0.5";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -1730,7 +1730,8 @@ void lightThirdLight()
 	{
 		breakout -= 1;
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true);
-		printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
+		if (possible_lightrings_values.count() <= 100)
+			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 		if (possible_lightrings_values.count() == 0)
 		{
 			printSilent("Unable to solve puzzle.");
