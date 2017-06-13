@@ -1,7 +1,7 @@
 //Briefcase.ash
 //Usage: briefcase help in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a2";
+string __briefcase_version = "1.0a3";
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -1679,10 +1679,12 @@ void lightThirdLight()
 	printSilent("Solving third light...");
 	discoverButtonWithFunctionID(5); //100
 	discoverButtonWithFunctionID(3); //10
-	discoverButtonWithFunctionID(1); //
+	discoverButtonWithFunctionID(1); //1
 	//Solve moving tabs:
 	//First, calculate permutation / what the buttons do:
-	//Should we solve all six buttons? Yes?
+	//Should we solve all six buttons first? ...yes? It would probably work better.
+	for function_id from 0 to 5
+		discoverButtonWithFunctionID(function_id);
 	
 	int breakout = 111;
 	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON && breakout > 0)
@@ -1825,7 +1827,8 @@ void outputHelp()
 {
 	printSilent("Briefcase.ash v" + __briefcase_version + ". Commands:");
 	printSilent("");
-	printSilent("<strong>unlock</strong> - unlocks everything we know how to unlock, solves puzzles.");
+	printSilent("<strong>unlock</strong> - unlocks everything we know how to unlock.");
+	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
 	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
 	printSilent("<strong>status</strong> - shows current briefcase status");
 	printSilent("<strong>help</strong>");
@@ -1837,6 +1840,7 @@ void outputHelp()
 	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
 	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
+	printSilent("<strong>reset</strong> - resets the briefcase without confirmation");
 }
 
 void outputStatus()
@@ -1941,13 +1945,16 @@ void main(string command)
 	{
 		openRightDrawer();
 	}
-	if (command == "unlock")
+	if (command == "unlock" || command == "solve")
 	{
 		unlockCrank();
 		unlockMartiniHose();
 		openLeftDrawer();
 		openRightDrawer();
 		unlockButtons();
+	}
+	if (command == "solve")
+	{
 		lightSecondLight();
 		lightThirdLight();
 	}
