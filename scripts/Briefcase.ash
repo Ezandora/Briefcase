@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a10";
+string __briefcase_version = "1.0a11";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -2092,7 +2092,7 @@ void handleEnchantmentCommand(string command)
 
 void main(string command)
 {
-	if ($item[kremlin's greatest briefcase].item_amount() == 0) //'
+	if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
 	{
 		printSilent("You don't seem to own a briefcase.");
 		return;
