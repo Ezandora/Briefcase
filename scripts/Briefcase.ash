@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a5";
+string __briefcase_version = "1.0a6";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -222,6 +222,8 @@ void readFileState()
 
 int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
 {
+	if (permutation.count() != 6)
+		return 0;
 	int base_ten = 0;
 	foreach i in configuration
 	{
