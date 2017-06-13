@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a9";
+string __briefcase_version = "1.0a10";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -2179,6 +2179,13 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
+		if (!can_interact())
+		{
+			boolean yes = user_confirm("Are you sure you want to solve the briefcase? You might want to wait until aftercore, this takes a lot of clicks.");
+			if (!yes)
+				return;
+			
+		}
 		lightSecondLight();
 		lightThirdLight();
 	}
