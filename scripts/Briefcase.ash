@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a8";
+string __briefcase_version = "1.0a9";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -1052,7 +1052,7 @@ void generateAllTabPermutations(int [int][int] all_permutations, int [int] curre
 	for i from 0 to 5
 	{
 		boolean no = false;
-		for j from 0 to current_permutation.count() - 1
+		foreach j in current_permutation
 		{
 			if (current_permutation[j] == i)
 			{
@@ -1098,8 +1098,8 @@ int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [
 		next_configuration.listAppend(-1);
 	
 	int [int] permutation_inverse;
-	for i from 0 to 5
-		permutation_inverse.listAppend(-1);
+	//for i from 0 to 5
+		//permutation_inverse.listAppend(-1);
 	foreach i in permutation
 	{
 		permutation_inverse[permutation[i]] = i;
@@ -1111,24 +1111,26 @@ int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [
 		base_ten -= v * index_value;
 		next_configuration[permutation_inverse[i]] = v;
 	}
+	
 	if (should_output)
 		printSilent("next_configuration = " + next_configuration);
 	
 	return next_configuration;
 }
 
-boolean permutationsAreEqual(int [int] permutation_a, int [int] permutation_b)
+boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
 {
-	if (permutation_a.count() != permutation_b.count()) return false;
-	foreach i in permutation_a
+	if (configuration_a.count() != configuration_b.count()) return false;
+	foreach i in configuration_a
 	{
-		if (permutation_a[i] != permutation_b[i]) return false;
+		if (configuration_a[i] != configuration_b[i]) return false;
 	}
 	return true;
 }
 
 void calculateStateTransitionInformation(int [int][int] all_permutations, TabStateTransition transition, boolean [int][int][int] valid_possible_button_configurations)
 {
+	//printSilent("calculateStateTransitionInformation(all_permutations, " + transition.to_json());
 	//This button is one of six, and the permutation is one of 720.
 	//So, out of all of those, which could we possibly be?
 	boolean stop = false;
@@ -1150,7 +1152,7 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 			int [int] configuration = transition.before_tab_configuration.listCopy();
 			int [int] next_configuration = addNumberToTabConfiguration(configuration, change_amount, permutation, false);
 			
-			if (permutationsAreEqual(transition.after_tab_configuration, next_configuration))
+			if (configurationsAreEqual(transition.after_tab_configuration, next_configuration))
 			{
 				//We could possibly be button_function_id, permutation.
 			}
@@ -1163,7 +1165,7 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 			if (false)
 			{
 				int [int] configuration_test = addNumberToTabConfiguration(configuration, 0, permutation, false);
-				if (!permutationsAreEqual(configuration_test, configuration))
+				if (!configurationsAreEqual(configuration_test, configuration))
 				{
 					printSilent("ERROR: " + configuration_test + " is not " + configuration + " on permutation " + permutation);
 					addNumberToTabConfiguration(configuration, 0, permutation, true);
@@ -1234,6 +1236,7 @@ boolean [int][int] calculateTabs()
 	int [int] blank;
 	generateAllTabPermutations(all_permutations, blank);
 	//printSilent("all_permutations = " + all_permutations.to_json());
+	//printSilent("all_permutations.count() = " + all_permutations.count());
 	boolean [int][int][int] valid_possible_button_configurations; //button_actual_id, button_functional_id, permutation_id
 	for button_actual_id from 0 to 5
 	{
@@ -1241,7 +1244,7 @@ boolean [int][int] calculateTabs()
 		for button_functional_id from 0 to 5
 		{
 			boolean [int] button_2_list;
-			for permutation_id from 0 to all_permutations.count() - 1
+			foreach permutation_id in all_permutations
 			{
 				button_2_list[permutation_id] = true;
 			}
@@ -1254,6 +1257,23 @@ boolean [int][int] calculateTabs()
 	{
 		if (transition.button_id >= 0)
 			calculateStateTransitionInformation(all_permutations, transition, valid_possible_button_configurations);
+	}
+	if (false)
+	{
+		//debugging:
+		foreach key in valid_possible_button_configurations
+		{
+			foreach key2 in valid_possible_button_configurations[key]
+			{
+				foreach key3 in valid_possible_button_configurations[key][key2]
+				{
+					if (valid_possible_button_configurations[key][key2][key3])
+					{
+						printSIlent(key + ", " + key2 + ", " + key3 + " is valid");
+					}
+				}
+			}
+		}
 	}
 	//Now, learn from valid_possible_button_configurations:
 	//Calculate valid_permutation_ids:
@@ -1278,12 +1298,14 @@ boolean [int][int] calculateTabs()
 			}
 			if (!has_valid_combination)
 			{
+				//printSilent(button_actual_id + " has no solution for " + permutation_id + " (" + all_permutations[permutation_id].listJoinComponents(", ") + ")");
 				//console.log(permutation_id + " invalidated by " + button_actual_id);
 				valid_permutation_ids[permutation_id] = false;
 				break;
 			}
 		}
 	}
+	//printSilent("valid_permutation_ids = " + valid_permutation_ids.to_json());
 	int [int][int] valid_permutations;
 	foreach permutation_id in all_permutations
 	{
@@ -1387,7 +1409,7 @@ int [int] discoverTabPermutation()
 	{
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
-		printSilent("valid_button_functions = " + valid_button_functions.to_json());
+		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
 		foreach button_actual_id in valid_button_functions
 		{
@@ -1465,7 +1487,7 @@ int [int] calculatePossibleLightringsValues()
 		boolean found = false;
 		foreach i in lightrings_seen_values[entry.lightrings_id]
 		{
-			if (permutationsAreEqual(lightrings_seen_values[entry.lightrings_id][i], entry.tab_configuration))
+			if (configurationsAreEqual(lightrings_seen_values[entry.lightrings_id][i], entry.tab_configuration))
 			{
 				found = true;
 				break;
