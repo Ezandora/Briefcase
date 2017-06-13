@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a11";
+string __briefcase_version = "1.0a12";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -360,13 +360,17 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 	
 	description.listAppend(clicks_line);
 	if (__file_state["_out of clicks for the day"].to_boolean())
-		description.listAppend("Out of clicks for the day.");
+		description.listAppend("<font color=\"red\">Out of clicks for the day.</font>");
 	return description;
 }
 
 BriefcaseState __state;
 BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int action_number)
 {
+	if (page_text.length() == 0)
+	{
+		abort("Unable to load briefcase?");
+	}
 	if (page_text.contains_text("<script>document.location.reload();</script>"))
 	{
 		//We should reload the page for state:
@@ -598,6 +602,16 @@ void updateState(buffer page_text)
 	updateState(page_text, ACTION_TYPE_NONE, -1);
 }
 
+boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
+{
+	if (configuration_a.count() != configuration_b.count()) return false;
+	foreach i in configuration_a
+	{
+		if (configuration_a[i] != configuration_b[i]) return false;
+	}
+	return true;
+}
+
 
 //Internal manipulations:
 void actionSetDialsTo(int [int] dial_configuration)
@@ -609,7 +623,13 @@ void actionSetDialsTo(int [int] dial_configuration)
 		{
 			breakout -= 1;
 			printSilent("Clicking dial " + (i + 1) + "...");
+			int [int] previous_dial_state = __state.dial_configuration.listCopy();
 			updateState(visit_url("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
+			if (configurationsAreEqual(__state.dial_configuration, previous_dial_state))
+			{
+				abort("Unable to interact with the briefcase?");
+				return;
+			}
 			//printSilent("__state = " + __state.to_json());
 		}
 	}
@@ -1118,16 +1138,6 @@ int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [
 	return next_configuration;
 }
 
-boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
-{
-	if (configuration_a.count() != configuration_b.count()) return false;
-	foreach i in configuration_a
-	{
-		if (configuration_a[i] != configuration_b[i]) return false;
-	}
-	return true;
-}
-
 void calculateStateTransitionInformation(int [int][int] all_permutations, TabStateTransition transition, boolean [int][int][int] valid_possible_button_configurations)
 {
 	//printSilent("calculateStateTransitionInformation(all_permutations, " + transition.to_json());
@@ -1560,7 +1570,7 @@ int discoverButtonWithFunctionID(int function_id)
 	actionSetHandleTo(true);
 	int value_wanted = __button_functions[function_id];
 	
-	int breakout = 111;
+	int breakout = 21;
 	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
 		breakout -= 1;
@@ -1846,21 +1856,22 @@ void outputHelp()
 	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
 	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
-	printSilent("<strong>reset</strong> - resets the briefcase without confirmation");
+	printSilent("<strong>reset</strong> - resets the briefcase");
 }
 
 void outputStatus()
 {
 	printSilent("Briefcase status:");
+	string [int] out;
 	foreach key, s in BriefcaseStateDescription(__state)
-		printSilent(s);
+		out.listAppend(s);
 	if (__file_state["_flywheel charged"].to_boolean())
-		printSilent("Flywheel charged.");
+		out.listAppend("Flywheel charged.");
 	if (__file_state["lightrings target number"] != "")
-		printSilent("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
+		out.listAppend("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
 	if (__file_state["initial dial configuration"] != "")
 	{
-		printSilent("Initial dial configuration: " + convertDialConfigurationToString(stringToIntIntList(__file_state["initial dial configuration"])));
+		out.listAppend("Initial dial configuration: " + convertDialConfigurationToString(stringToIntIntList(__file_state["initial dial configuration"])));
 	}
 	
 	if (__file_state["tab permutation"] != "")
@@ -1873,7 +1884,7 @@ void outputStatus()
 			other_notation.listAppend(powi(3, 5 - tab_permutation[j]));
 		}
 		
-		printSilent("Tab permutation: (" + other_notation.listJoinComponents(", ") + ")");
+		out.listAppend("Tab permutation: (" + other_notation.listJoinComponents(", ") + ")");
 	}
 	string [int] buttons_line;
 	for i from 1 to 6
@@ -1885,7 +1896,12 @@ void outputStatus()
 		buttons_line.listAppend("<strong>B" + i + ":</strong> " + value);
 	}
 	if (buttons_line.count() > 0)
-		printSilent("Buttons: " + buttons_line.listJoinComponents(", "));
+		out.listAppend("Buttons: " + buttons_line.listJoinComponents(", "));
+	
+	//Indent with nbsp:
+	string tabs = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+	if (out.count() > 0)
+		print_html(tabs + out.listJoinComponents("<br>" + tabs));
 }
 
 void recalculateVarious()
@@ -2134,6 +2150,9 @@ void main(string command)
 	}
 	if (command == "reset")
 	{
+		boolean yes = user_confirm("Reset the briefcase? Are you sure?");
+		if (!yes)
+			return;
 		//up (initial) -> down -> up -> down -> up does not reset
 		int flips = 4;
 		if (__state.handle_up)
