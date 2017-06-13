@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.5";
+string __briefcase_version = "1.0.6";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -680,7 +680,18 @@ void actionTurnCrank()
 
 void actionPressButton(int button_id) //1 through 6
 {
-	printSilent("Pressing button " + button_id + ".");
+	string line = "Pressing button " + button_id + ".";
+	if (__file_state["B" + button_id + " tab change"] != "" && __state.handle_up)
+	{
+		int value = __file_state["B" + button_id + " tab change"].to_int();
+		
+		line += " (";
+		if (value > 0)
+			line += "+";
+		line += value;
+		line += ")";
+	}
+	printSilent(line);
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
@@ -734,6 +745,11 @@ void openLeftDrawer()
 {
 	if (__state.left_drawer_unlocked) return;
 	printSilent("Opening left drawer...");
+	if (__file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Unable to open left drawer, out of clicks for the day.");
+		return;
+	}
 	//222-any not 2(?) left
 	//int [int] configuration = {2, 2, 2, 0, 0, 0};
 	if (true)
@@ -761,6 +777,11 @@ void openRightDrawer()
 {
 	if (__state.right_drawer_unlocked) return;
 	printSilent("Opening right drawer...");
+	if (__file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Unable to open right drawer, out of clicks for the day.");
+		return;
+	}
 	//any not 2(?)-222 right
 	//handle state matters...?
 	if (false)
@@ -788,6 +809,11 @@ void unlockCrank()
 {
 	if (__state.crank_unlocked) return;
 	printSilent("Unlocking crank...");
+	if (__file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Unable to unlock crank, out of clicks for the day.");
+		return;
+	}
 	//000-000 handle down left actuator
 	int [int] dial_configuration = {0, 0, 0, 0, 0, 0};
 	actionSetDialsTo(dial_configuration);
@@ -799,6 +825,11 @@ void unlockMartiniHose()
 {
 	if (__state.martini_hose_unlocked) return;
 	printSilent("Unlocking martini hose...");
+	if (__file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Unable to unlock martini hose, out of clicks for the day.");
+		return;
+	}
 	//000-000 or 111-111 or 222-222 etc, handle up, left actuator
 	int [int] dial_configuration = {0, 0, 0, 0, 0, 0};
 	actionSetDialsTo(dial_configuration);
@@ -811,6 +842,11 @@ void unlockButtons()
 	//012-210 or XYZ-ZYX palindrome, press either actuator
 	if (__state.buttons_unlocked) return;
 	printSilent("Unlocking buttons...");
+	if (__file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Unable to unlock buttons, out of clicks for the day.");
+		return;
+	}
 	int [int] dial_configuration = {0, 1, 2, 2, 1, 0};
 	actionSetDialsTo(dial_configuration);
 	actionPressLeftActuator();
@@ -1075,6 +1111,10 @@ void lightSecondLight()
 		}
 		else
 			actionPressRightActuator();
+	}
+	if (__state.horizontal_light_states[2] != LIGHT_STATE_ON && __file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Can't solve yet, out of clicks for the day.");
 	}
 }
 
@@ -1740,6 +1780,10 @@ void lightThirdLight()
 		//Only press once, since we want to recalculate lightrings every press:
 		setTabsToNumber(possible_lightrings_values[0], true);
 	}
+	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_out of clicks for the day"].to_boolean())
+	{
+		printSilent("Can't solve yet, out of clicks for the day.");
+	}
 }
 
 //FIXME lights four-six.
@@ -1749,7 +1793,12 @@ void lightThirdLight()
 
 void collectSplendidMartinis()
 {
-	//FIXME don't do this if we don't have enough clicks for the day?
+	//FIXME don't do this if we don't have enough clicks for the day to finish?
+	if (__file_state["_martini hose collected"].to_int() >= 3)
+	{
+		printSilent("Already collected from the hose today.");
+		return;
+	}
 	discoverButtonWithFunctionID(5); //100
 	unlockMartiniHose();
 	for i from 1 to 3
@@ -1887,7 +1936,7 @@ void outputHelp()
 
 void outputStatus()
 {
-	printSilent("Briefcase status:");
+	printSilent("Briefcase v" + __briefcase_version + " status:");
 	string [int] out;
 	foreach key, s in BriefcaseStateDescription(__state)
 		out.listAppend(s);
