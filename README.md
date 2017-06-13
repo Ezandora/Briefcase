@@ -1,6 +1,7 @@
 Briefcase
 =====
 Script for the Kremlin's Greatest Briefcase in Kingdom of Loathing.
+Not yet ready for release. This page does not exist. Would not recommend.
 
 
 
