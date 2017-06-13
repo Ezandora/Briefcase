@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0a12";
+string __briefcase_version = "1.0";
 boolean __enable_debug_output = false;
 
 //Utlity:
