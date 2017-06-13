@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0";
+string __briefcase_version = "1.0.1";
 boolean __enable_debug_output = false;
 
 //Utlity:
@@ -222,6 +222,11 @@ void readFileState()
 
 int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
 {
+	//We don't need to know permutations for this:
+	if (configuration.count() == 6 && configuration[0] == 2 && configuration[1] == 2 && configuration[2] == 2 && configuration[3] == 2 && configuration[4] == 2 && configuration[5] == 2)
+		return 728;
+	if (configuration.count() == 6 && configuration[0] == 0 && configuration[1] == 0 && configuration[0] == 0 && configuration[3] == 0 && configuration[4] == 0 && configuration[5] == 0)
+		return 0;
 	if (permutation.count() != 6)
 		return 0;
 	int base_ten = 0;
@@ -1404,7 +1409,7 @@ boolean [int][int] calculateTabs()
 
 
 
-int [int] discoverTabPermutation()
+int [int] discoverTabPermutation(boolean allow_actions)
 {
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
 	actionSetHandleTo(true);
@@ -1442,6 +1447,8 @@ int [int] discoverTabPermutation()
 			return blank;
 		}
 		//abort("next_chosen_button = " + next_chosen_button);
+		if (!allow_actions)
+			break;
 		actionPressButton(next_chosen_button + 1);
 		//break;
 		//abort("write me " + next_chosen_button);
@@ -1459,10 +1466,10 @@ Record LightringsEntry
 	int [int] tab_configuration;
 };
 
-int [int] calculatePossibleLightringsValues()
+int [int] calculatePossibleLightringsValues(boolean allow_actions)
 {
 	//Parse lightrings observed:
-	int [int] permutation = discoverTabPermutation();
+	int [int] permutation = discoverTabPermutation(allow_actions);
 	if (permutation.count() == 0)
 	{
 		int [int] blank;
@@ -1566,7 +1573,7 @@ int discoverButtonWithFunctionID(int function_id)
 {
 	__discover_button_with_function_id_did_press_button = false;
 	unlockButtons();
-	discoverTabPermutation();
+	discoverTabPermutation(true);
 	actionSetHandleTo(true);
 	int value_wanted = __button_functions[function_id];
 	
@@ -1621,7 +1628,7 @@ int discoverButtonWithFunctionID(int function_id)
 void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
 {
 	//int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
-	discoverTabPermutation();
+	discoverTabPermutation(true);
 	
 	actionSetHandleTo(true);
 	int breakout = 111;
@@ -1704,7 +1711,7 @@ void lightThirdLight()
 	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON && breakout > 0)
 	{
 		breakout -= 1;
-		int [int] possible_lightrings_values = calculatePossibleLightringsValues();
+		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true);
 		printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 		if (possible_lightrings_values.count() == 0)
 		{
@@ -1907,7 +1914,7 @@ void outputStatus()
 void recalculateVarious()
 {
 	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
-		calculatePossibleLightringsValues();
+		calculatePossibleLightringsValues(false);
 }
 
 int [int] __briefcase_enchantments; //slot -> enchantment, in order
@@ -2131,7 +2138,7 @@ void main(string command)
 		return;
 	}
 	if (command == "discover")
-		discoverTabPermutation();
+		discoverTabPermutation(true);
 	
 	//Do things we should always do:
 	lightFirstLight();
@@ -2226,7 +2233,7 @@ void main(string command)
 		calculateTabs();
 		for function_id from 0 to 5
 			discoverButtonWithFunctionID(function_id);
-		int [int] possible_lightrings_values = calculatePossibleLightringsValues();
+		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true);
 		if (possible_lightrings_values.count() < 100)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 	}
