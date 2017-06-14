@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.8";
+string __briefcase_version = "1.0.9";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -628,7 +628,7 @@ void actionSetDialsTo(int [int] dial_configuration)
 		while (__state.dial_configuration[i] != dial_configuration[i] && breakout > 0)
 		{
 			breakout -= 1;
-			printSilent("Clicking dial " + (i + 1) + "...");
+			printSilent("Moving dial " + (i + 1) + "...");
 			int [int] previous_dial_state = __state.dial_configuration.listCopy();
 			updateState(visit_url("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
 			if (configurationsAreEqual(__state.dial_configuration, previous_dial_state))
@@ -680,7 +680,7 @@ void actionTurnCrank()
 
 void actionPressButton(int button_id) //1 through 6
 {
-	string line = "Pressing button " + button_id + ".";
+	string line = "Clicking button " + button_id + ".";
 	if (__file_state["B" + button_id + " tab change"] != "" && __state.handle_up)
 	{
 		int value = __file_state["B" + button_id + " tab change"].to_int();
@@ -699,7 +699,7 @@ void actionPressButton(int button_id) //1 through 6
 
 void actionPressTab(int tab_id)
 {
-	printSilent("Pressing tab " + tab_id + ".");
+	printSilent("Clicking tab " + tab_id + ".");
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false));
