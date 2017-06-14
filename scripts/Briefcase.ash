@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.7";
+string __briefcase_version = "1.0.8";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -1632,9 +1632,10 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 }
 
 boolean __discover_button_with_function_id_did_press_button = false; //secondary return
-int discoverButtonWithFunctionID(int function_id)
+int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 {
-	__discover_button_with_function_id_did_press_button = false;
+	if (!private_is_rescursing)
+		__discover_button_with_function_id_did_press_button = false;
 	unlockButtons();
 	discoverTabPermutation(true);
 	actionSetHandleTo(true);
@@ -1653,13 +1654,15 @@ int discoverButtonWithFunctionID(int function_id)
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
 		if (current_number == 0 && (function_id == 0 || function_id == 2 || function_id == 4))
 		{
-			//FIXME implement this - add 100 first.
-			abort("FIXME - can't discover");
+			//they want to discover a negative number and we're at zero
+			actionPressButton(discoverButtonWithFunctionID(5, true) + 1); //add 100 first
+			continue;
 		}
 		else if (current_number == 728 && (function_id == 1 || function_id == 3 || function_id == 5))
 		{
-			//FIXME implement this - subtract 100 first.
-			abort("FIXME - can't discover");
+			//they want to discover a positive number and we're at zero
+			actionPressButton(discoverButtonWithFunctionID(4, true) + 1); //subtract 100 first
+			continue;
 		}
 		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		int next_chosen_button = -1;
@@ -1685,6 +1688,11 @@ int discoverButtonWithFunctionID(int function_id)
 			return i - 1;
 	}
 	return -1;
+}
+
+int discoverButtonWithFunctionID(int function_id)
+{
+	return discoverButtonWithFunctionID(function_id, false);
 }
 
 void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
