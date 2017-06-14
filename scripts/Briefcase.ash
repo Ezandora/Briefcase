@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.6";
+string __briefcase_version = "1.0.7";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -1525,7 +1525,7 @@ Record LightringsEntry
 	int [int] tab_configuration;
 };
 
-int [int] calculatePossibleLightringsValues(boolean allow_actions)
+int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_return_unvisited_lightrings)
 {
 	//Parse lightrings observed:
 	int [int] permutation = discoverTabPermutation(allow_actions);
@@ -1535,6 +1535,7 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions)
 		return blank;
 	}
 	
+	boolean [int] visited_numbers;
 	LightringsEntry [int] lightrings_entries;
 	foreach key, entry_string in __file_state["lightrings observed"].split_string("•")
 	{
@@ -1544,6 +1545,7 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions)
 		LightringsEntry entry;
 		entry.tab_configuration = stringToIntIntList(entry_list[0]);
 		entry.lightrings_id = entry_list[1].to_int();
+		visited_numbers[convertTabConfigurationToBase10(entry.tab_configuration, permutation)] = true;
 		
 		lightrings_entries[lightrings_entries.count()] = entry;
 		//printSilent(lightrings_id + " on " + tab_configuration.listJoinComponents(", "));
@@ -1615,10 +1617,12 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions)
 	int [int] possible_lightrings_answers_final;
 	for i from 0 to 728
 	{
+		if (visited_numbers[i] && only_return_unvisited_lightrings)
+			continue;
 		if (possible_lightrings_numbers[i])
 			possible_lightrings_answers_final.listAppend(i);
 	}
-	if (possible_lightrings_answers_final.count() == 1)
+	if (possible_lightrings_answers_final.count() == 1 && !only_return_unvisited_lightrings)
 	{
 		__file_state["lightrings target number"] = possible_lightrings_answers_final[0];
 		writeFileState();
@@ -1769,7 +1773,7 @@ void lightThirdLight()
 	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON && breakout > 0)
 	{
 		breakout -= 1;
-		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true);
+		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, true);
 		if (possible_lightrings_values.count() <= 100)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 		if (possible_lightrings_values.count() == 0)
@@ -1777,6 +1781,7 @@ void lightThirdLight()
 			printSilent("Unable to solve puzzle.");
 			return;
 		}
+		
 		//Only press once, since we want to recalculate lightrings every press:
 		setTabsToNumber(possible_lightrings_values[0], true);
 	}
@@ -1982,7 +1987,7 @@ void outputStatus()
 void recalculateVarious()
 {
 	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
-		calculatePossibleLightringsValues(false);
+		calculatePossibleLightringsValues(false, false);
 }
 
 int [int] __briefcase_enchantments; //slot -> enchantment, in order
@@ -2301,7 +2306,7 @@ void main(string command)
 		calculateTabs();
 		for function_id from 0 to 5
 			discoverButtonWithFunctionID(function_id);
-		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true);
+		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, false);
 		if (possible_lightrings_values.count() < 100)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 	}
