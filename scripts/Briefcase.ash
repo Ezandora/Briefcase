@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.9";
+string __briefcase_version = "1.0.10";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -362,7 +362,7 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 		
 	int clicks_remaining = MAX(0, clicks_limit - __file_state["_clicks"].to_int());
 	if (clicks_remaining > 0)
-		clicks_line += " (<strong>" + clicks_remaining + "</strong> remaining)";
+		clicks_line += " (<strong>" + clicks_remaining + "</strong>(?) remaining)";
 	
 	description.listAppend(clicks_line);
 	if (__file_state["_out of clicks for the day"].to_boolean())
@@ -477,20 +477,28 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	//Do some post-processing:
 	if (state.last_action_results["Click!"])
 	{
+		if (my_id() == 1557284)
+			print("KGBRIEFCASEDEBUG: Click!");
 		__file_state["_clicks"] =__file_state["_clicks"].to_int() + 1;
 		writeFileState();
 	}
 	if (state.last_action_results["Click click click!"])
 	{
+		if (my_id() == 1557284)
+			print("KGBRIEFCASEDEBUG: Click click click!");
 		__file_state["_clicks"] =__file_state["_clicks"].to_int() + 3;
 		writeFileState();
 	}
 	if (state.last_action_results["Nothing happens. Hmm. Maybe it's out of... clicks?  For the day?"])
 	{
-		__file_state["_clicks"] = 22;
+		if (my_id() == 1557284)
+			print("KGBRIEFCASEDEBUG: Out of... clicks? For the day?");
+		//__file_state["_clicks"] = 22;
+		__file_state["_out of clicks for the day"] = true;
 		writeFileState();
 	}
-	if (__file_state["_clicks"].to_int() >= 22 && !__file_state["_out of clicks for the day"].to_boolean())
+	//This seems to be inaccurate at the moment, so don't draw conclusions:
+	if (__file_state["_clicks"].to_int() >= 22 && !__file_state["_out of clicks for the day"].to_boolean() && false)
 	{
 		__file_state["_out of clicks for the day"] = true;
 		writeFileState();
@@ -628,7 +636,7 @@ void actionSetDialsTo(int [int] dial_configuration)
 		while (__state.dial_configuration[i] != dial_configuration[i] && breakout > 0)
 		{
 			breakout -= 1;
-			printSilent("Moving dial " + (i + 1) + "...");
+			printSilent("Moving dial " + (i + 1) + "...", "gray");
 			int [int] previous_dial_state = __state.dial_configuration.listCopy();
 			updateState(visit_url("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
 			if (configurationsAreEqual(__state.dial_configuration, previous_dial_state))
@@ -641,9 +649,16 @@ void actionSetDialsTo(int [int] dial_configuration)
 	}
 }
 
+
+void actionVisitBriefcase()
+{
+	printSilent("Loading briefcase...", "gray");
+	updateState(visit_url("place.php?whichplace=kgb", false, false));
+}
+
 void actionPressLeftActuator()
 {
-	printSilent("Clicking left actuator...");
+	printSilent("Clicking left actuator...", "gray");
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator1", false, false), ACTION_TYPE_LEFT_ACTUATOR, -1);
@@ -651,7 +666,7 @@ void actionPressLeftActuator()
 
 void actionPressRightActuator()
 {
-	printSilent("Clicking right actuator...");
+	printSilent("Clicking right actuator...", "gray");
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator2", false, false), ACTION_TYPE_RIGHT_ACTUATOR, -1);
@@ -659,7 +674,7 @@ void actionPressRightActuator()
 
 void actionManipulateHandle()
 {
-	printSilent("Toggling handle...");
+	printSilent("Toggling handle...", "gray");
 	if (__state.handle_up)
 		updateState(visit_url("place.php?whichplace=kgb&action=kgb_handleup", false, false));
 	else
@@ -674,7 +689,7 @@ void actionSetHandleTo(boolean up)
 
 void actionTurnCrank()
 {
-	printSilent("Turning crank.");
+	printSilent("Turning crank.", "gray");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_crank", false, false));
 }
 
@@ -691,7 +706,7 @@ void actionPressButton(int button_id) //1 through 6
 		line += value;
 		line += ")";
 	}
-	printSilent(line);
+	printSilent(line, "gray");
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
@@ -699,7 +714,7 @@ void actionPressButton(int button_id) //1 through 6
 
 void actionPressTab(int tab_id)
 {
-	printSilent("Clicking tab " + tab_id + ".");
+	printSilent("Clicking tab " + tab_id + ".", "gray");
 	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false));
@@ -707,7 +722,7 @@ void actionPressTab(int tab_id)
 
 void actionCollectLeftDrawer()
 {
-	printSilent("Collecting from left drawer.");
+	printSilent("Collecting from left drawer.", "gray");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_drawer2", false, false));
 	if (__state.last_action_results["The drawer is empty now, but you can hear gears inside the case steadily turning. Maybe you should check back tomorrow?"]);
 	{
@@ -719,7 +734,7 @@ void actionCollectLeftDrawer()
 
 void actionCollectRightDrawer()
 {
-	printSilent("Collecting from right drawer.");
+	printSilent("Collecting from right drawer.", "gray");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_drawer1", false, false));
 	if (__state.last_action_results["The drawer is empty now, but you can hear gears inside the case steadily turning. Maybe you should check back tomorrow?"]);
 	{
@@ -730,7 +745,7 @@ void actionCollectRightDrawer()
 
 void actionCollectMartiniHose()
 {
-	printSilent("Collecting from martini hose.");
+	printSilent("Collecting from martini hose.", "gray");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_dispenser", false, false));
 	if (__state.last_action_results["Hmm. Nothing happens. Looks like it's out of juice for today."])
 	{
@@ -1464,9 +1479,17 @@ int [int] discoverTabPermutation(boolean allow_actions)
 	int breakout = 111;
 	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
 	{
-		printSilent("We can't discover tab permutations after you've solved the third light, yet. Sorry.");
 		int [int] blank;
-		return blank;
+		if (!allow_actions) return blank;
+		//Are the tabs moving?
+		int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
+		actionVisitBriefcase();
+		
+		if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
+		{
+			printSilent("We can't discover tab permutations with moving tabs, yet. Sorry. Reset the briefcase?");
+			return blank;
+		}
 	}
 	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
@@ -1782,7 +1805,7 @@ void lightThirdLight()
 	{
 		breakout -= 1;
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, true);
-		if (possible_lightrings_values.count() <= 100)
+		if (possible_lightrings_values.count() <= 100 && possible_lightrings_values.count() > 0)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 		if (possible_lightrings_values.count() == 0)
 		{
@@ -2003,7 +2026,7 @@ void parseBriefcaseEnchantments()
 {
 	for i from 0 to 2
 		__briefcase_enchantments[i] = -1;
-	printSilent("Viewing briefcase enchantments.");
+	printSilent("Viewing briefcase enchantments.", "gray");
 	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
 	
 	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
@@ -2209,8 +2232,7 @@ void main(string command)
 		return;
 	}
 	
-	buffer page_text = visit_url("place.php?whichplace=kgb");
-	updateState(page_text);
+	actionVisitBriefcase();
 	recalculateVarious();
 	
 	if (command == "status")
@@ -2304,7 +2326,7 @@ void main(string command)
 	{
 		lightThirdLight();
 	}
-	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink")
+	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks")
 	{
 		//Increment tabs to 222222, collect splendid martinis:
 		collectSplendidMartinis();
@@ -2315,7 +2337,7 @@ void main(string command)
 		for function_id from 0 to 5
 			discoverButtonWithFunctionID(function_id);
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, false);
-		if (possible_lightrings_values.count() < 100)
+		if (possible_lightrings_values.count() < 100 && possible_lightrings_values.count() > 0)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
 	}
 	
