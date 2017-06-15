@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.10";
+string __briefcase_version = "1.0.11";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -2199,7 +2199,7 @@ void handleEnchantmentCommand(string command)
 					delta_right += max_for_slot[slot_id];
 				if (delta_right >= max_for_slot[slot_id])
 					delta_right -= max_for_slot[slot_id];
-				printSilent("delta_left = " + delta_left + ", delta_right = " + delta_right);
+				//printSilent("delta_left = " + delta_left + ", delta_right = " + delta_right);
 				//note that I internally switched these around, so "left" and "right" really mean the opposite in terms of what's on the case
 				if (delta_left < delta_right)
 				{
