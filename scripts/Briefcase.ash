@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.11";
+string __briefcase_version = "1.0.12";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -226,7 +226,7 @@ int convertTabConfigurationToBase10(int [int] configuration, int [int] permutati
 	//We don't need to know permutations for this:
 	if (configuration.count() == 6 && configuration[0] == 2 && configuration[1] == 2 && configuration[2] == 2 && configuration[3] == 2 && configuration[4] == 2 && configuration[5] == 2)
 		return 728;
-	if (configuration.count() == 6 && configuration[0] == 0 && configuration[1] == 0 && configuration[0] == 0 && configuration[3] == 0 && configuration[4] == 0 && configuration[5] == 0)
+	if (configuration.count() == 6 && configuration[0] == 0 && configuration[1] == 0 && configuration[2] == 0 && configuration[3] == 0 && configuration[4] == 0 && configuration[5] == 0)
 		return 0;
 	if (permutation.count() != 6)
 		return 0;
@@ -362,7 +362,7 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 		
 	int clicks_remaining = MAX(0, clicks_limit - __file_state["_clicks"].to_int());
 	if (clicks_remaining > 0)
-		clicks_line += " (<strong>" + clicks_remaining + "</strong>(?) remaining)";
+		clicks_line += " (<strong>" + clicks_remaining + "</strong>? remaining)";
 	
 	description.listAppend(clicks_line);
 	if (__file_state["_out of clicks for the day"].to_boolean())
@@ -1173,7 +1173,7 @@ int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [
 	//Convert base-three number into base-ten:
 	int base_ten = convertTabConfigurationToBase10(configuration, permutation);
 	if (should_output)
-		printSilent("base_ten = " + base_ten);
+		printSilent("base_ten of " + configuration.listJoinComponents(", ") + " = " + base_ten);
 	//Add number:
 	base_ten += amount;
 	//Cap:
@@ -1200,7 +1200,7 @@ int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [
 	}
 	
 	if (should_output)
-		printSilent("next_configuration = " + next_configuration);
+		printSilent("next_configuration = " + next_configuration.listJoinComponents(", "));
 	
 	return next_configuration;
 }
@@ -1220,14 +1220,17 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 			//console.log(transition.button_id + ", " + button_function_id + ", " + i);
 			if (!(valid_possible_button_configurations contains transition.button_id))
 			{
-				printSilent("NOooooooo: " + transition.button_id + ", " + button_function_id + ", " + i);
+				printSilent("Internal error, valid possible button configurations malformed: " + transition.button_id + ", " + button_function_id + ", " + i);
 			}
 			if (!valid_possible_button_configurations[transition.button_id][button_function_id][i])
 				continue;
 			int [int] permutation = all_permutations[i];
+			boolean should_output = false;
+			/*if (permutation[0] == 1 && permutation[1] == 0 && permutation[2] == 3 && permutation[3] == 4 && permutation[4] == 2 && permutation[5] == 5 && button_function_id == 5)
+				should_output = true;*/
 			//Apply button_function to transition.before_tab_configuration. Do we get transition.after_tab_configuration?
 			int [int] configuration = transition.before_tab_configuration.listCopy();
-			int [int] next_configuration = addNumberToTabConfiguration(configuration, change_amount, permutation, false);
+			int [int] next_configuration = addNumberToTabConfiguration(configuration, change_amount, permutation, should_output);
 			
 			if (configurationsAreEqual(transition.after_tab_configuration, next_configuration))
 			{
@@ -1235,6 +1238,10 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 			}
 			else
 			{
+				if (should_output)
+				{
+					printSilent("invalidating " + permutation.listJoinComponents(", ") + " as part of button " + button_function_id + ", configuration = " + configuration.listJoinComponents(", ") + ", next_configuration = " + next_configuration.listJoinComponents(", ") + ", actual = " + transition.after_tab_configuration.listJoinComponents(", "));
+				}
 				//We aren't. Eliminate it.
 				//console.log("! " + transition.button_id + ", " + button_function_id + ", " + i + " - " + next_configuration + ", " + transition.after_tab_configuration);
 				valid_possible_button_configurations[transition.button_id][button_function_id][i] = false;
@@ -1390,7 +1397,7 @@ boolean [int][int] calculateTabs()
 			valid_permutations[valid_permutations.count()] = all_permutations[permutation_id];
 	}
 	
-	//console.log("valid_permutation_ids = " + valid_permutation_ids);
+	//printSilent("valid_permutation_ids = " + valid_permutation_ids.to_json());
 	//__button_functions
 	boolean [int][int] valid_button_functions;
 	boolean [int] button_fuctions_identified;
@@ -2113,8 +2120,8 @@ void handleEnchantmentCommand(string command)
 		printSilent(decorateEnchantmentOutput("regen", 2, 0) + ": 5-10 HP/MP regen");
 		printSilent(decorateEnchantmentOutput("adventures", 2, 1) + ": +5 adventures/day");
 		printSilent(decorateEnchantmentOutput("fights", 2, 2) + ": +5 PvP fights/day");
-		printSilent(decorateEnchantmentOutput("-combat", 2, 3) + ": -?% combat");
-		printSilent(decorateEnchantmentOutput("+combat", 2, 4) + ": +?% combat");
+		printSilent(decorateEnchantmentOutput("-combat", 2, 3) + ": -5% combat");
+		printSilent(decorateEnchantmentOutput("+combat", 2, 4) + ": +5% combat");
 		printSilent(decorateEnchantmentOutput("ml", 2, 5) + ": +25 ML");
 		printSilent(decorateEnchantmentOutput("skills", 2, 6) + ": -3 MP to use skills");
 		
@@ -2339,6 +2346,14 @@ void main(string command)
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, false);
 		if (possible_lightrings_values.count() < 100 && possible_lightrings_values.count() > 0)
 			printSilent("Possible lightrings values: " + possible_lightrings_values.listJoinComponents(", "));
+	}
+	if (command.stringHasPrefix("tab"))
+	{
+		int tab_to_click = command.split_string(" ")[1].to_int();
+		if (tab_to_click > 0 && tab_to_click <= 6)
+		{
+			actionPressTab(tab_to_click);
+		}
 	}
 	
 	//After all that, do other stuff:
