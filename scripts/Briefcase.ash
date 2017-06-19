@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.12";
+string __briefcase_version = "1.0.13";
 boolean __enable_debug_output = false;
 
 boolean __confirm_actions_that_will_use_a_click = false;
@@ -242,6 +242,16 @@ int convertTabConfigurationToBase10(int [int] configuration, int [int] permutati
 	return base_ten;
 }
 
+boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
+{
+	if (configuration_a.count() != configuration_b.count()) return false;
+	foreach i in configuration_a
+	{
+		if (configuration_a[i] != configuration_b[i]) return false;
+	}
+	return true;
+}
+
 //Briefcase state and parsing:
 int LIGHT_STATE_UNKNOWN = -1;
 int LIGHT_STATE_OFF = 0;
@@ -370,6 +380,25 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 	return description;
 }
 
+int [int] parseTabState(buffer page_text)
+{
+	int [int] tab_configuration;
+	for tab_id from 0 to 5
+	{
+		string [int][int] matches = page_text.group_string("<div id=kgb_tab" + (tab_id + 1) + "[^>]*>(.*?)</div>");
+		string line = matches[0][1];
+		int value = -1;
+		if (line.contains_text("A Short Tab"))
+			value = 1;
+		else if (line.contains_text("A Long Tab"))
+			value = 2;
+		else
+			value = 0;
+		tab_configuration[tab_id] = value;
+	}
+	return tab_configuration;
+}
+
 BriefcaseState __state;
 BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int action_number)
 {
@@ -413,19 +442,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		
 		state.horizontal_light_states[light_id] = light_state;
 	}
-	for tab_id from 0 to 5
-	{
-		string [int][int] matches = page_text.group_string("<div id=kgb_tab" + (tab_id + 1) + "[^>]*>(.*?)</div>");
-		string line = matches[0][1];
-		int value = -1;
-		if (line.contains_text("A Short Tab"))
-			value = 1;
-		else if (line.contains_text("A Long Tab"))
-			value = 2;
-		else
-			value = 0;
-		state.tab_configuration[tab_id] = value;
-	}
+	state.tab_configuration = parseTabState(page_text);
 	for mastermind_id from 1 to 3
 	{
 		string [int][int] matches = page_text.group_string("<div id=kgb_mastermind" + mastermind_id + ".*?otherimages/kgb/light_(.*?)\.gif");
@@ -521,17 +538,38 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	}
 	
 	//FIXME support discovering tabs even when they've solved the puzzle. Or just ask they reset the case...? Too easy?
-	if (state.last_action_results["You press a button on the side of the case."] && state.horizontal_light_states[3] != LIGHT_STATE_ON && action_type == ACTION_TYPE_BUTTON)
+	if (state.last_action_results["You press a button on the side of the case."] && action_type == ACTION_TYPE_BUTTON)
 	{
+		boolean tabs_are_moving = false;
+		boolean should_write = true;
+		int [int] current_tab_configuration = state.tab_configuration.listCopy();
+		if (state.horizontal_light_states[3] == LIGHT_STATE_ON && !(__state.tab_configuration[0] == 0 && __state.tab_configuration[1] == 0 && __state.tab_configuration[2] == 0 && __state.tab_configuration[3] == 0 && __state.tab_configuration[4] == 0 && __state.tab_configuration[5] == 0)) //can't be moving, last was 0,0,0,0,0,0
+		{
+			//Are they moving?
+			buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+			state.tab_configuration = parseTabState(page_text_2);
+			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
+			{
+				tabs_are_moving = true;
+			}
+			if (current_tab_configuration[0] == 0 && current_tab_configuration[1] == 0 && current_tab_configuration[2] == 0 && current_tab_configuration[3] == 0 && current_tab_configuration[4] == 0 && current_tab_configuration[5] == 0) //there is no way to know if the tabs were moving; just don't write this one?
+			{
+				should_write = false;
+			}
+		}
 		//Save previous tab state, button pressed, and current tab state:
-		string line;
-		line += action_number + "|";
-		line += __state.tab_configuration.listJoinComponents(",") + "|";
-		line += state.tab_configuration.listJoinComponents(",");
-		if (__file_state["button tab log"].length() != 0)
-			__file_state["button tab log"] += "•";
-		__file_state["button tab log"] += line;
-		writeFileState();
+		if (should_write)
+		{
+			string line;
+			line += action_number + "|";
+			line += __state.tab_configuration.listJoinComponents(",") + "|";
+			line += current_tab_configuration.listJoinComponents(",");
+			line += "|" + tabs_are_moving;
+			if (__file_state["button tab log"].length() != 0)
+				__file_state["button tab log"] += "•";
+			__file_state["button tab log"] += line;
+			writeFileState();
+		}
 	}
 	
 	if (state.last_action_results["As you flipped the handle down that last time, the case hopped up, spun around, and returned to its initial configuration."])
@@ -616,27 +654,18 @@ void updateState(buffer page_text)
 	updateState(page_text, ACTION_TYPE_NONE, -1);
 }
 
-boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
-{
-	if (configuration_a.count() != configuration_b.count()) return false;
-	foreach i in configuration_a
-	{
-		if (configuration_a[i] != configuration_b[i]) return false;
-	}
-	return true;
-}
-
 
 //Internal manipulations:
 void actionSetDialsTo(int [int] dial_configuration)
 {
 	int breakout = 11 * 6 + 1;
+	printSilent("Setting dials to " + convertDialConfigurationToString(dial_configuration) + "...");
 	for i from 0 to 5
 	{
 		while (__state.dial_configuration[i] != dial_configuration[i] && breakout > 0)
 		{
 			breakout -= 1;
-			printSilent("Moving dial " + (i + 1) + "...", "gray");
+			//printSilent("Moving dial " + (i + 1) + "...", "gray");
 			int [int] previous_dial_state = __state.dial_configuration.listCopy();
 			updateState(visit_url("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
 			if (configurationsAreEqual(__state.dial_configuration, previous_dial_state))
@@ -1163,6 +1192,7 @@ Record TabStateTransition
 	int button_id;
 	int [int] before_tab_configuration;
 	int [int] after_tab_configuration;
+	boolean tabs_were_moving;
 };
 
 
@@ -1214,6 +1244,8 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 	for button_function_id from 0 to 5
 	{
 		int change_amount = __button_functions[button_function_id];
+		if (transition.tabs_were_moving)
+			change_amount -= 1;
 		
 		foreach i in all_permutations
 		{
@@ -1300,7 +1332,7 @@ boolean [int][int] calculateTabs()
 	{
 		if (entry_string == "") continue;
 		string [int] entry = entry_string.split_string("\\|");
-		if (entry.count() != 3) continue;
+		if (entry.count() != 3 && entry.count() != 4) continue;
 		
 		TabStateTransition state_transition;
 		state_transition.button_id = entry[0].to_int() - 1;
@@ -1309,6 +1341,9 @@ boolean [int][int] calculateTabs()
 			state_transition.before_tab_configuration.listAppend(v.to_int());
 		foreach key, v in entry[2].split_string(",")
 			state_transition.after_tab_configuration.listAppend(v.to_int());
+		
+		if (entry.count() == 4)
+			state_transition.tabs_were_moving = entry[3].to_boolean();
 		
 		state_transitions[state_transitions.count()] = state_transition;
 	}
@@ -1470,7 +1505,7 @@ boolean [int][int] calculateTabs()
 				change = __button_functions[function_id];
 			__file_state["B" + (button_id + 1) + " tab change"] = change;
 			writeFileState();
-			printSilent("B" + (button_id + 1) + ": " + change);
+			//printSilent("B" + (button_id + 1) + ": " + change);
 		}
 	}
 	
@@ -1484,7 +1519,7 @@ int [int] discoverTabPermutation(boolean allow_actions)
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
 	actionSetHandleTo(true);
 	int breakout = 111;
-	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && false) //it totally can do this now. maybe.
 	{
 		int [int] blank;
 		if (!allow_actions) return blank;
@@ -1668,7 +1703,6 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 		__discover_button_with_function_id_did_press_button = false;
 	unlockButtons();
 	discoverTabPermutation(true);
-	actionSetHandleTo(true);
 	int value_wanted = __button_functions[function_id];
 	
 	int breakout = 23;
@@ -1681,6 +1715,7 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 			if (__file_state["B" + i + " tab change"].to_int() == value_wanted)
 				return i - 1;
 		}
+		actionSetHandleTo(true);
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
 		if (current_number == 0 && (function_id == 0 || function_id == 2 || function_id == 4))
 		{
@@ -1874,6 +1909,7 @@ void chargeFlywheel()
 		printSilent("Unable to charge flywheel, crank not unlocked.", "red");
 		return;
 	}
+	printSilent("Charging flywheel...");
 	actionSetHandleTo(true);
 	
 	for i from 1 to 11
@@ -2024,6 +2060,7 @@ void outputStatus()
 
 void recalculateVarious()
 {
+	calculateTabs();
 	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
 		calculatePossibleLightringsValues(false, false);
 }
@@ -2354,6 +2391,20 @@ void main(string command)
 		{
 			actionPressTab(tab_to_click);
 		}
+	}
+	if (command.stringHasPrefix("button"))
+	{
+		int button_to_click = command.split_string(" ")[1].to_int();
+		if (button_to_click > 0 && button_to_click <= 6)
+		{
+			actionPressButton(button_to_click);
+		}
+	}
+	//Internal:
+	if (command == "test_dials")
+	{
+		int [int] dial_configuration = {0, 1, 2, 2, 1, 0};
+		actionSetDialsTo(dial_configuration);
 	}
 	
 	//After all that, do other stuff:
