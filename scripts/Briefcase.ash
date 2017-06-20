@@ -2,10 +2,13 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.13";
-boolean __enable_debug_output = false;
+string __briefcase_version = "1.0.14";
+//Debug settings:
+boolean __setting_enable_debug_output = false;
 
-boolean __confirm_actions_that_will_use_a_click = false;
+boolean __setting_confirm_actions_that_will_use_a_click = false;
+
+boolean __setting_output_help_before_main = false;
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
 //So, add spaces every so often if we need them:
@@ -219,7 +222,7 @@ void readFileState()
 	
 }
 
-
+readFileState();
 
 int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
 {
@@ -488,7 +491,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 			continue;
 		state.last_action_results[result] = true;
 	}
-	if (state.last_action_results.count() > 0 && __enable_debug_output)
+	if (state.last_action_results.count() > 0 && __setting_enable_debug_output)
 		printSilent("Results: \"" + state.last_action_results.listInvert().listJoinComponents("\" / \"").entity_encode() + "\"", "gray");
 	
 	//Do some post-processing:
@@ -688,7 +691,7 @@ void actionVisitBriefcase()
 void actionPressLeftActuator()
 {
 	printSilent("Clicking left actuator...", "gray");
-	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator1", false, false), ACTION_TYPE_LEFT_ACTUATOR, -1);
 }
@@ -696,7 +699,7 @@ void actionPressLeftActuator()
 void actionPressRightActuator()
 {
 	printSilent("Clicking right actuator...", "gray");
-	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator2", false, false), ACTION_TYPE_RIGHT_ACTUATOR, -1);
 }
@@ -736,7 +739,7 @@ void actionPressButton(int button_id) //1 through 6
 		line += ")";
 	}
 	printSilent(line, "gray");
-	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
 }
@@ -744,7 +747,7 @@ void actionPressButton(int button_id) //1 through 6
 void actionPressTab(int tab_id)
 {
 	printSilent("Clicking tab " + tab_id + ".", "gray");
-	if (__confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
+	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false));
 }
@@ -2261,6 +2264,8 @@ void handleEnchantmentCommand(string command)
 	}
 }
 
+if (__setting_output_help_before_main)
+	outputHelp();
 void main(string command)
 {
 	if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
@@ -2268,12 +2273,19 @@ void main(string command)
 		printSilent("You don't seem to own a briefcase.");
 		return;
 	}
-	readFileState();
+	//readFileState(); //done already
 	
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
 	{
-		outputHelp();
+		if (!__setting_output_help_before_main)
+			outputHelp();
 		return;
+	}
+	if (__setting_output_help_before_main)
+	{
+		printSilent("");
+		printSilent("<hr>");
+		printSilent("");
 	}
 	
 	actionVisitBriefcase();

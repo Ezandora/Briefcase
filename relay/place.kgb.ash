@@ -1,10 +1,13 @@
+import "Briefcase.ash";
+
 void main()
 {
 	buffer page_text = visit_url();
+	updateState(page_text);
 	
 	page_text.replace_string("alt=\"Handle (up)\"", "alt=\"Handle (up)\" style=\"opacity:0.5;\"");
 	buffer extra;
-	extra.append("<div>Soviet space " + gametime_to_int() + "</div>");
+	extra.append("<div>Test " + gametime_to_int() + "</div>");
 	
 	//page_text.replace_string("<div id=background style='position:relative;'>", "<div id=background style='position:relative;'>" + extra);
 	write(page_text);
