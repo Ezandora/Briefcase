@@ -2,7 +2,7 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.14";
+string __briefcase_version = "1.0.15";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 
@@ -368,12 +368,14 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 	if (state.last_action_results.count() > 0)
 		description.listAppend("Last action results: " + state.last_action_results.listInvert().listJoinComponents(", "));
 	
-	string clicks_line = "Clicks used: " + __file_state["_clicks"].to_int();
+	int clicks_used = MAX(get_property("_kgbClicksUsed").to_int(), __file_state["_clicks"].to_int());
+	
+	string clicks_line = "Clicks used: " + clicks_used;
 	int clicks_limit = 11;
 	if (__file_state["_flywheel charged"].to_boolean())
 		clicks_limit = 22;
 		
-	int clicks_remaining = MAX(0, clicks_limit - __file_state["_clicks"].to_int());
+	int clicks_remaining = MAX(0, clicks_limit - clicks_used);
 	if (clicks_remaining > 0)
 		clicks_line += " (<strong>" + clicks_remaining + "</strong>? remaining)";
 	
