@@ -2,13 +2,16 @@ since r18080;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
-string __briefcase_version = "1.0.15";
+
+string __briefcase_version = "1.0.16";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
+boolean __setting_debug = false;
 
 boolean __setting_confirm_actions_that_will_use_a_click = false;
 
 boolean __setting_output_help_before_main = false;
+
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
 //So, add spaces every so often if we need them:
@@ -178,7 +181,6 @@ int [int] stringToIntIntList(string input)
 	return stringToIntIntList(input, ",");
 }
 
-
 //File state:
 boolean __did_read_file_state = false;
 string [string] __file_state;
@@ -223,7 +225,6 @@ void readFileState()
 }
 
 readFileState();
-
 int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
 {
 	//We don't need to know permutations for this:
@@ -266,6 +267,7 @@ int ACTION_TYPE_NONE = 0;
 int ACTION_TYPE_LEFT_ACTUATOR = 1;
 int ACTION_TYPE_RIGHT_ACTUATOR = 2;
 int ACTION_TYPE_BUTTON = 3;
+int ACTION_TYPE_TAB = 4;
 
 int [int] __button_functions = {-1, 1, -10, 10, -100, 100};
 
@@ -402,6 +404,27 @@ int [int] parseTabState(buffer page_text)
 		tab_configuration[tab_id] = value;
 	}
 	return tab_configuration;
+}
+
+string constructTabIdentifierForTab(int pressed_tab_number, int pressed_tab_state)
+{
+	buffer tab_identifier;
+	if (pressed_tab_number > 1)
+	{
+		for i from 1 to pressed_tab_number - 1
+		{
+			tab_identifier.append("x");
+		}
+	}
+	tab_identifier.append(pressed_tab_state);
+	if (pressed_tab_number < 6)
+	{
+		for i from pressed_tab_number + 1 to 6
+		{
+			tab_identifier.append("x");
+		}
+	}
+	return tab_identifier.to_string();
 }
 
 BriefcaseState __state;
@@ -542,7 +565,6 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		writeFileState();
 	}
 	
-	//FIXME support discovering tabs even when they've solved the puzzle. Or just ask they reset the case...? Too easy?
 	if (state.last_action_results["You press a button on the side of the case."] && action_type == ACTION_TYPE_BUTTON)
 	{
 		boolean tabs_are_moving = false;
@@ -574,6 +596,64 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 				__file_state["button tab log"] += "•";
 			__file_state["button tab log"] += line;
 			writeFileState();
+		}
+	}
+	if (state.last_action_results["You pull a tab out from the bottom of the case, and then it retracts to its original position."] && action_type == ACTION_TYPE_TAB)
+	{
+		//Save the result of the tab action:
+
+		//Soooo... are the tabs moving? If so, we'll reject. (currently)
+		int pressed_tab_number = action_number;
+		int pressed_tab_state = state.tab_configuration[pressed_tab_number - 1];
+		boolean tabs_are_moving = false;
+		int [int] current_tab_configuration = state.tab_configuration.listCopy();
+		if (state.horizontal_light_states[3] == LIGHT_STATE_ON)
+		{
+			//Are they moving?
+			buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+			state.tab_configuration = parseTabState(page_text_2);
+			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
+			{
+				tabs_are_moving = true;
+			}
+		}
+		if (!tabs_are_moving)
+		{
+			boolean consistent_tab = true;
+			int effect_number = -1; //using the 00X system
+			if (state.last_action_results["(duration: 100 Adventures)"])
+			{
+				//The weird tab. I think this is random? Maybe? I dunno, I only heard whispers.
+				consistent_tab = false;
+			}
+			foreach result in state.last_action_results
+			{
+				//Try to match effect image:
+				string [int][int] matches = result.group_string("itemimages/effect00([0-9]+).gif");
+				if (matches.count() > 0)
+				{
+					effect_number = matches[0][1].to_int();
+				}
+			}
+			if (effect_number != -1)
+			{
+				if (!consistent_tab) //the 100-length tab is weird, we'll log it as 0
+					effect_number = 0;
+				//Now, we want to log this tab as having this effect:
+				//Hmm, what format do we want?
+				//	tab xxxx2x effect	5
+				//	tab effect 5	xxxx2x
+				//	tab effects	5|xxxx2x•6|1xxxxx
+				//I think the second one? It seems the easiest to query? We can just iterate 0-11 for discovery purposes.
+				//Oh, and "tab_number,state" is better.
+				
+				//Construct tab identifier:
+				//string tab_identifier = constructTabIdentifierForTab(pressed_tab_number, pressed_tab_state);
+				
+				string file_key = "tab effect " + effect_number;
+				__file_state[file_key] = pressed_tab_number + "," + pressed_tab_state;
+				writeFileState();
+			}
 		}
 	}
 	
@@ -658,9 +738,6 @@ void updateState(buffer page_text)
 {
 	updateState(page_text, ACTION_TYPE_NONE, -1);
 }
-
-
-//Internal manipulations:
 void actionSetDialsTo(int [int] dial_configuration)
 {
 	int breakout = 11 * 6 + 1;
@@ -751,7 +828,7 @@ void actionPressTab(int tab_id)
 	printSilent("Clicking tab " + tab_id + ".", "gray");
 	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false));
+	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false), ACTION_TYPE_TAB, tab_id);
 }
 
 void actionCollectLeftDrawer()
@@ -787,7 +864,6 @@ void actionCollectMartiniHose()
 		writeFileState();
 	}
 }
-
 
 //Tasks:
 void openLeftDrawer()
@@ -1166,7 +1242,6 @@ void lightSecondLight()
 		printSilent("Can't solve yet, out of clicks for the day.");
 	}
 }
-
 void generateAllTabPermutations(int [int][int] all_permutations, int [int] current_permutation)
 {
 	if (current_permutation.count() >= 6) return;
@@ -1516,9 +1591,71 @@ boolean [int][int] calculateTabs()
 	
 	return valid_button_functions;
 }
+void outputHelp()
+{
+	printSilent("Briefcase.ash v" + __briefcase_version + ". Commands:");
+	printSilent("");
+	printSilent("<strong>enchantment</strong> or <strong>e</strong> - changes briefcase enchantment (type \"briefcase enchantment\" for more information.)");
+	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
+	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
+	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
+	printSilent("<strong>status</strong> - shows current briefcase status");
+	printSilent("<strong>help</strong>");
+	printSilent("");
+	printSilent("<strong>drawers</strong> or <strong>left</strong> or <strong>right</strong> - unlocks all/left/right drawers");
+	printSilent("<strong>hose</strong> - unlocks martini hose");
+	printSilent("<strong>drink</strong> - acquires three splendid martinis");
+	printSilent("");
+	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
+	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
+	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
+	printSilent("<strong>reset</strong> - resets the briefcase");
+}
 
-
-
+void outputStatus()
+{
+	printSilent("Briefcase v" + __briefcase_version + " status:");
+	string [int] out;
+	foreach key, s in BriefcaseStateDescription(__state)
+		out.listAppend(s);
+	if (__file_state["_flywheel charged"].to_boolean())
+		out.listAppend("Flywheel charged.");
+	if (__file_state["lightrings target number"] != "")
+		out.listAppend("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
+	if (__file_state["initial dial configuration"] != "")
+	{
+		out.listAppend("Initial dial configuration: " + convertDialConfigurationToString(stringToIntIntList(__file_state["initial dial configuration"])));
+	}
+	
+	if (__file_state["tab permutation"] != "")
+	{
+		int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+		
+		int [int] other_notation;
+		foreach j in tab_permutation
+		{
+			other_notation.listAppend(powi(3, 5 - tab_permutation[j]));
+		}
+		
+		out.listAppend("Tab permutation: (" + other_notation.listJoinComponents(", ") + ")");
+	}
+	string [int] buttons_line;
+	for i from 1 to 6
+	{
+		string key = "B" + i + " tab change";
+		if (__file_state[key] == "") continue;
+		
+		int value = __file_state["B" + i + " tab change"].to_int();
+		buttons_line.listAppend("<strong>B" + i + ":</strong> " + value);
+	}
+	if (buttons_line.count() > 0)
+		out.listAppend("Buttons: " + buttons_line.listJoinComponents(", "));
+	
+	//Indent with nbsp:
+	string tabs = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+	if (out.count() > 0)
+		print_html(tabs + out.listJoinComponents("<br>" + tabs));
+}
 int [int] discoverTabPermutation(boolean allow_actions)
 {
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
@@ -1588,6 +1725,146 @@ int [int] discoverTabPermutation(boolean allow_actions)
 	return blank;
 }
 
+
+boolean __discover_button_with_function_id_did_press_button = false; //secondary return
+int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
+{
+	if (!private_is_rescursing)
+		__discover_button_with_function_id_did_press_button = false;
+	unlockButtons();
+	discoverTabPermutation(true);
+	int value_wanted = __button_functions[function_id];
+	
+	int breakout = 23;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+	{
+		breakout -= 1;
+		boolean [int][int] valid_button_functions = calculateTabs();
+		for i from 1 to 6
+		{
+			if (__file_state["B" + i + " tab change"].to_int() == value_wanted)
+				return i - 1;
+		}
+		actionSetHandleTo(true);
+		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
+		if (current_number == 0 && (function_id == 0 || function_id == 2 || function_id == 4))
+		{
+			//they want to discover a negative number and we're at zero
+			actionPressButton(discoverButtonWithFunctionID(5, true) + 1); //add 100 first
+			continue;
+		}
+		else if (current_number == 728 && (function_id == 1 || function_id == 3 || function_id == 5))
+		{
+			//they want to discover a positive number and we're at zero
+			actionPressButton(discoverButtonWithFunctionID(4, true) + 1); //subtract 100 first
+			continue;
+		}
+		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
+		int next_chosen_button = -1;
+		foreach button_id in valid_button_functions
+		{
+			if (valid_button_functions[button_id][function_id])
+			{
+				next_chosen_button = button_id;
+				break;
+			}
+		}
+		if (next_chosen_button == -1)
+		{
+			abort("internal error while discovering button functions, not sure what to do next");
+			return -1;
+		}
+		__discover_button_with_function_id_did_press_button = true;
+		actionPressButton(next_chosen_button + 1);
+	}
+	for i from 1 to 6
+	{
+		if (__file_state["B" + i + " tab change"].to_int() == value_wanted)
+			return i - 1;
+	}
+	return -1;
+}
+
+int discoverButtonWithFunctionID(int function_id)
+{
+	return discoverButtonWithFunctionID(function_id, false);
+}
+
+void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, int minimum_allowed_number)
+{
+	//int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
+	discoverTabPermutation(true);
+	
+	actionSetHandleTo(true);
+    printSilent("Setting tabs to number " + desired_base_ten_number + "...", "gray");
+	int breakout = 111;
+	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+	{
+		breakout -= 1;
+		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
+		if (current_number == desired_base_ten_number)
+			return;
+        if (minimum_allowed_number != -1 && current_number >= minimum_allowed_number)
+            return;
+		int delta = desired_base_ten_number - current_number;
+		//printSilent("desired_base_ten_number = " + desired_base_ten_number + " current_number = " + current_number + " delta = " + delta);
+		
+		if (delta > 50 || desired_base_ten_number == 728)
+		{
+			int button_id = discoverButtonWithFunctionID(5);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else if (desired_base_ten_number == 0)
+		{
+			int button_id = discoverButtonWithFunctionID(4);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else if (delta > 5)
+		{
+			int button_id = discoverButtonWithFunctionID(3);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else if (delta > 0)
+		{
+			int button_id = discoverButtonWithFunctionID(1);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else if (delta < -50)
+		{
+			int button_id = discoverButtonWithFunctionID(4);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else if (delta < -5)
+		{
+			int button_id = discoverButtonWithFunctionID(2);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		else
+		{
+			int button_id = discoverButtonWithFunctionID(0);
+			if (!__discover_button_with_function_id_did_press_button)
+				actionPressButton(button_id + 1);
+		}
+		if (only_press_once)
+			break;
+	}
+}
+
+void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
+{
+    setTabsToNumber(desired_base_ten_number, only_press_once, -1);
+}
+
+void setTabsToNumber(int desired_base_ten_number)
+{
+	setTabsToNumber(desired_base_ten_number, false);
+}
 
 Record LightringsEntry
 {
@@ -1701,139 +1978,6 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 	return possible_lightrings_answers_final;
 }
 
-boolean __discover_button_with_function_id_did_press_button = false; //secondary return
-int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
-{
-	if (!private_is_rescursing)
-		__discover_button_with_function_id_did_press_button = false;
-	unlockButtons();
-	discoverTabPermutation(true);
-	int value_wanted = __button_functions[function_id];
-	
-	int breakout = 23;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
-	{
-		breakout -= 1;
-		boolean [int][int] valid_button_functions = calculateTabs();
-		for i from 1 to 6
-		{
-			if (__file_state["B" + i + " tab change"].to_int() == value_wanted)
-				return i - 1;
-		}
-		actionSetHandleTo(true);
-		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
-		if (current_number == 0 && (function_id == 0 || function_id == 2 || function_id == 4))
-		{
-			//they want to discover a negative number and we're at zero
-			actionPressButton(discoverButtonWithFunctionID(5, true) + 1); //add 100 first
-			continue;
-		}
-		else if (current_number == 728 && (function_id == 1 || function_id == 3 || function_id == 5))
-		{
-			//they want to discover a positive number and we're at zero
-			actionPressButton(discoverButtonWithFunctionID(4, true) + 1); //subtract 100 first
-			continue;
-		}
-		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
-		int next_chosen_button = -1;
-		foreach button_id in valid_button_functions
-		{
-			if (valid_button_functions[button_id][function_id])
-			{
-				next_chosen_button = button_id;
-				break;
-			}
-		}
-		if (next_chosen_button == -1)
-		{
-			abort("internal error while discovering button functions, not sure what to do next");
-			return -1;
-		}
-		__discover_button_with_function_id_did_press_button = true;
-		actionPressButton(next_chosen_button + 1);
-	}
-	for i from 1 to 6
-	{
-		if (__file_state["B" + i + " tab change"].to_int() == value_wanted)
-			return i - 1;
-	}
-	return -1;
-}
-
-int discoverButtonWithFunctionID(int function_id)
-{
-	return discoverButtonWithFunctionID(function_id, false);
-}
-
-void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
-{
-	//int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
-	discoverTabPermutation(true);
-	
-	actionSetHandleTo(true);
-	int breakout = 111;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
-	{
-		breakout -= 1;
-		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
-		if (current_number == desired_base_ten_number)
-			return;
-			
-		int delta = desired_base_ten_number - current_number;
-		//printSilent("desired_base_ten_number = " + desired_base_ten_number + " current_number = " + current_number + " delta = " + delta);
-		
-		if (delta > 50 || desired_base_ten_number == 728)
-		{
-			int button_id = discoverButtonWithFunctionID(5);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else if (desired_base_ten_number == 0)
-		{
-			int button_id = discoverButtonWithFunctionID(4);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else if (delta > 5)
-		{
-			int button_id = discoverButtonWithFunctionID(3);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else if (delta > 0)
-		{
-			int button_id = discoverButtonWithFunctionID(1);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else if (delta < -50)
-		{
-			int button_id = discoverButtonWithFunctionID(4);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else if (delta < -5)
-		{
-			int button_id = discoverButtonWithFunctionID(2);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		else
-		{
-			int button_id = discoverButtonWithFunctionID(0);
-			if (!__discover_button_with_function_id_did_press_button)
-				actionPressButton(button_id + 1);
-		}
-		if (only_press_once)
-			break;
-	}
-}
-
-void setTabsToNumber(int desired_base_ten_number)
-{
-	setTabsToNumber(desired_base_ten_number, false);
-}
-
 void lightThirdLight()
 {
 	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON) return;
@@ -1868,12 +2012,6 @@ void lightThirdLight()
 		printSilent("Can't solve yet, out of clicks for the day.");
 	}
 }
-
-//FIXME lights four-six.
-//Once it's spaded.
-//... if it's spaded?
-//(what if it's never spaded)
-
 void collectSplendidMartinis()
 {
 	//FIXME don't do this if we don't have enough clicks for the day to finish?
@@ -1888,7 +2026,7 @@ void collectSplendidMartinis()
 	{
 		if (__file_state["_martini hose collected"].to_int() >= 3)
 			break;
-		setTabsToNumber(728); //FIXME don't bother if we're >= 725...? but, the moving tabs?
+		setTabsToNumber(728, false, 726); //FIXME don't bother if we're >= 725...? but, the moving tabs?
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
 		if (current_number >= 726)
 		{
@@ -1984,92 +2122,6 @@ void chargeAntennae()
 			break;
 	}
 }
-
-void makeTabsMove()
-{
-	//FIXME implement this
-	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON)
-	{
-		lightThirdLight();
-		return;
-	}
-	abort("FIXME make tabs move");
-}
-
-
-void outputHelp()
-{
-	printSilent("Briefcase.ash v" + __briefcase_version + ". Commands:");
-	printSilent("");
-	printSilent("<strong>enchantment</strong> or <strong>e</strong> - changes briefcase enchantment (type \"briefcase enchantment\" for more information.)");
-	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
-	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
-	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
-	printSilent("<strong>status</strong> - shows current briefcase status");
-	printSilent("<strong>help</strong>");
-	printSilent("");
-	printSilent("<strong>drawers</strong> or <strong>left</strong> or <strong>right</strong> - unlocks all/left/right drawers");
-	printSilent("<strong>hose</strong> - unlocks martini hose");
-	printSilent("<strong>drink</strong> - acquires three splendid martinis");
-	printSilent("");
-	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
-	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
-	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
-	printSilent("<strong>reset</strong> - resets the briefcase");
-}
-
-void outputStatus()
-{
-	printSilent("Briefcase v" + __briefcase_version + " status:");
-	string [int] out;
-	foreach key, s in BriefcaseStateDescription(__state)
-		out.listAppend(s);
-	if (__file_state["_flywheel charged"].to_boolean())
-		out.listAppend("Flywheel charged.");
-	if (__file_state["lightrings target number"] != "")
-		out.listAppend("Puzzle #3 target number: " + __file_state["lightrings target number"].to_int());
-	if (__file_state["initial dial configuration"] != "")
-	{
-		out.listAppend("Initial dial configuration: " + convertDialConfigurationToString(stringToIntIntList(__file_state["initial dial configuration"])));
-	}
-	
-	if (__file_state["tab permutation"] != "")
-	{
-		int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
-		
-		int [int] other_notation;
-		foreach j in tab_permutation
-		{
-			other_notation.listAppend(powi(3, 5 - tab_permutation[j]));
-		}
-		
-		out.listAppend("Tab permutation: (" + other_notation.listJoinComponents(", ") + ")");
-	}
-	string [int] buttons_line;
-	for i from 1 to 6
-	{
-		string key = "B" + i + " tab change";
-		if (__file_state[key] == "") continue;
-		
-		int value = __file_state["B" + i + " tab change"].to_int();
-		buttons_line.listAppend("<strong>B" + i + ":</strong> " + value);
-	}
-	if (buttons_line.count() > 0)
-		out.listAppend("Buttons: " + buttons_line.listJoinComponents(", "));
-	
-	//Indent with nbsp:
-	string tabs = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
-	if (out.count() > 0)
-		print_html(tabs + out.listJoinComponents("<br>" + tabs));
-}
-
-void recalculateVarious()
-{
-	calculateTabs();
-	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
-		calculatePossibleLightringsValues(false, false);
-}
-
 int [int] __briefcase_enchantments; //slot -> enchantment, in order
 void parseBriefcaseEnchantments()
 {
@@ -2266,6 +2318,496 @@ void handleEnchantmentCommand(string command)
 	}
 }
 
+int [int] computePathToNumber(int target_number, int starting_number)
+{
+    int current_number = starting_number;
+    int [int] buttons_pressed;
+    while (current_number != target_number)
+    {
+        int delta = target_number - current_number;
+        
+        int chosen = 0;
+        if (delta > 50 || target_number == 728)
+        {
+            chosen = 100;
+        }
+        else if (target_number == 0)
+        {
+            chosen = -100;
+        }
+        else if (delta > 5)
+        {
+            chosen = 10;
+        }
+        else if (delta > 0)
+        {
+            chosen = 1;
+        }
+        else if (delta < -50)
+        {
+            chosen = -100;
+        }
+        else if (delta < -5)
+        {
+            chosen = -10;
+        }
+        else
+        {
+            chosen = -1;
+        }
+        if (chosen == 0)
+        {
+            printSilent("Internal error computing " + current_number + " to " + target_number);
+            break;
+        }
+        buttons_pressed.listAppend(chosen);
+        current_number += chosen;
+    }
+    return buttons_pressed;
+}
+
+//Same as computePathToNumber, minus the overhead(?) of managing a list.
+int computePathLengthToNumber(int target_number, int starting_number)
+{
+    int current_number = starting_number;
+    int buttons_pressed = 0;
+    
+    while (current_number != target_number)
+    {
+        int delta = target_number - current_number;
+        
+        int chosen = 0;
+        if (delta > 50 || target_number == 728)
+        {
+            chosen = 100;
+        }
+        else if (target_number == 0)
+        {
+            chosen = -100;
+        }
+        else if (delta > 5)
+        {
+            chosen = 10;
+        }
+        else if (delta > 0)
+        {
+            chosen = 1;
+        }
+        else if (delta < -50)
+        {
+            chosen = -100;
+        }
+        else if (delta < -5)
+        {
+            chosen = -10;
+        }
+        else
+        {
+            chosen = -1;
+        }
+        if (chosen == 0)
+        {
+            printSilent("Internal error computing " + current_number + " to " + target_number);
+            break;
+        }
+        current_number += chosen;
+        buttons_pressed++;
+    }
+    return buttons_pressed;
+}
+
+//Returns true if done.
+boolean incrementTabConfiguration(int [int] configuration, int ignoring_index)
+{
+	//Try next code:
+	int i = 5;
+	while (i >= 0)
+	{
+        if (i == ignoring_index)
+        {
+            i--;
+            continue;
+        }
+		configuration[i]++;
+		if (configuration[i] > 2)
+		{
+			configuration[i] = 0;
+			i--;
+		}
+		else
+			break;
+	}
+	if (i < 0)
+		return true;
+	return false;
+}
+
+int countNumberOfUnknownTabs(int [int] tab_configuration, boolean [int][int] tabs_known)
+{
+    int count = 0;
+    for tab_id from 0 to 5
+    {
+        if (tab_configuration[tab_id] == 0) continue;
+        if (!tabs_known[tab_id][tab_configuration[tab_id]])
+            count++;
+    }
+    return count;
+}
+
+int computeBestTargetNumberForTab(int tab_id, int tab_length, boolean [int][int] tabs_known)
+{
+    int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+    int current_briefcase_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+    int best_found_path_length = -1;
+    int best_found_tab_id = -1;
+    int best_found_target_number = -1;
+    int best_found_tabs_at_final = -1;
+    //Go through every possible number, pick the one with the least button presses, do that:
+    int [int] operating_configuration;
+    for i from 0 to 5
+        operating_configuration[i] = 0;
+
+    operating_configuration[tab_id] = tab_length;
+    while (true)
+    {
+        int operating_configuration_base_ten = convertTabConfigurationToBase10(operating_configuration, tab_permutation);
+        int path_length = computePathLengthToNumber(operating_configuration_base_ten, current_briefcase_number);
+        boolean should_replace = false;
+        //FIXME increment operating_configuration keeping tab_id stable:
+        if (best_found_path_length == -1 || path_length < best_found_path_length)
+        {
+            should_replace = true;
+        }
+        else if (path_length == best_found_path_length)
+        {
+            int found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
+            if (found_tabs_at_final > best_found_tabs_at_final)
+                should_replace = true;
+        }
+        if (should_replace)
+        {
+            best_found_path_length = path_length;
+            best_found_tab_id = tab_id;
+            best_found_target_number = operating_configuration_base_ten;
+            best_found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
+        }
+        boolean done = incrementTabConfiguration(operating_configuration, tab_id);
+        if (done)
+            break;
+    }
+    //Now, reach best_found_target_number:
+    if (best_found_target_number == -1)
+    {
+        abort("Internal error: unable to compute a good target number.");
+        return -1;
+    }
+    printSilent("best_found_target_number = " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
+    return best_found_target_number;
+}
+
+
+void pressTab(int tab_id, int tab_length)
+{
+    //printSilent("Activating buff of tab " + tab_id + " of length " + tab_length);
+    //We have to reach this tab state using the least clicks, then press the tab:
+    
+    while (__state.tab_configuration[tab_id] != tab_length)
+    {
+        boolean [int][int] tabs_known;
+        int best_found_target_number = computeBestTargetNumberForTab(tab_id, tab_length, tabs_known);
+        setTabsToNumber(best_found_target_number, true); //only press once, because if we discover the wrong button, maybe we'll find a new one...?
+    }
+    if (__state.tab_configuration[tab_id] == tab_length)
+    {
+        actionPressTab(tab_id + 1);
+        return;
+    }
+    else
+    {
+        printSilent("Unable to help.");
+    }
+    
+}
+
+effect [int] __spy_buff_id_to_effect = {1:$effect[Punch Another Day], 2:$effect[For Your Brain Only], 3:$effect[Quantum of Moxie], 4:$effect[License to Punch], 5:$effect[Thunderspell], 6:$effect[Goldentongue], 7:$effect[The Living Hitpoints], 8:$effect[Initiative and Let Die], 9:$effect[A View to Some Meat], 10:$effect[Items Are Forever], 11:$effect[The Spy Who Loved XP]};
+int [effect] __spy_effect_to_buff_id = {$effect[Punch Another Day]:1, $effect[For Your Brain Only]:2, $effect[Quantum of Moxie]:3, $effect[License to Punch]:4, $effect[Thunderspell]:5, $effect[Goldentongue]:6, $effect[The Living Hitpoints]:7, $effect[Initiative and Let Die]:8, $effect[A View to Some Meat]:9, $effect[Items Are Forever]:10, $effect[The Spy Who Loved XP]:11};
+string [effect] __buff_descriptions = {$effect[Punch Another Day]:"+30 muscle", $effect[For Your Brain Only]:"+30 myst", $effect[Quantum of Moxie]:"+30 moxie", $effect[License to Punch]:"+100% muscle", $effect[Thunderspell]:"+100% myst", $effect[Goldentongue]:"+100% moxie", $effect[The Living Hitpoints]:"+100% HP/MP", $effect[Initiative and Let Die]:"+50% init", $effect[A View to Some Meat]:"+100% meat", $effect[Items Are Forever]:"+50% item", $effect[The Spy Who Loved XP]:"+5 stats/fight"};
+
+void handleBuffCommand(string command)
+{
+	string [int] words = command.split_string(" ");
+	
+	if (words.count() < 2)
+	{
+		
+		//What buffs do we know about?
+		boolean [effect] buffs_know_about;
+		for buff_id from 1 to 11
+		{
+			if (__file_state["tab effect " + buff_id] != "")
+			{
+				buffs_know_about[__spy_buff_id_to_effect[buff_id]] = true;
+			}
+		}
+		printSilent("buffs_know_about = " + buffs_know_about.to_json());
+	}
+	else
+	{	
+		outputStatus();
+		chargeFlywheel();
+		unlockButtons();
+        
+        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+        {
+            //Are the tabs moving?
+            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
+            actionVisitBriefcase();
+            
+            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
+            {
+                //This could theoreticaly be supported, but it would be complicated.
+                printSilent("Buff command disabled while tabs are moving. Reset the briefcase? Or wind down the tabs?");
+                return;
+            }
+        }
+        //For computing deltas (have we gained this buff already)
+        int [effect] starting_effect_count;
+        foreach e in __spy_effect_to_buff_id
+        {
+            starting_effect_count[e] = e.have_effect();
+        }
+        for word_id from 1 to words.count() - 1
+        {
+            //Parse buff:
+            effect desired_buff = $effect[none];
+            string word = words[word_id].to_lower_case();
+            if (word == "meat")
+                desired_buff = $effect[A View to Some Meat];
+            else if (word == "item" || word == "items")
+                desired_buff = $effect[Items Are Forever];
+            else if (word == "xp" || word == "exp" || word == "experience" || word == "stats")
+                desired_buff = $effect[The Spy Who Loved XP];
+            else if (word == "hp" || word == "mp" || word == "hitpoints")
+                desired_buff = $effect[The Living Hitpoints];
+            else if (word == "muscle_absolute" || word == "muscle_abs" || word == "punch")
+                desired_buff = $effect[Punch Another Day];
+            else if (word == "myst_absolute" || word == "myst_abs" || word == "brain")
+                desired_buff = $effect[For Your Brain Only];
+            else if (word == "moxie_absolute" || word == "moxie_abs" || word == "quantum")
+                desired_buff = $effect[Quantum of Moxie];
+            else if (word == "muscle_percentage" || word == "muscle_per" || word == "license")
+                desired_buff = $effect[License to Punch];
+            else if (word == "myst_percentage" || word == "myst_per" || word == "thunderspell")
+                desired_buff = $effect[Thunderspell];
+            else if (word == "moxie_percentage" || word == "moxie_per" || word == "goldentongue")
+                desired_buff = $effect[Goldentongue];
+            else if (word == "muscle")
+            {
+                if (my_basestat($stat[muscle]) >= 30)
+                    desired_buff = $effect[License to Punch];
+                else
+                    desired_buff = $effect[Punch Another Day];
+            }
+            else if (word == "myst" || word == "mysticality")
+            {
+                if (my_basestat($stat[mysticality]) >= 30)
+                    desired_buff = $effect[Thunderspell];
+                else
+                    desired_buff = $effect[For Your Brain Only];
+            }
+            else if (word == "moxie")
+            {
+                if (my_basestat($stat[moxie]) >= 30)
+                    desired_buff = $effect[Goldentongue];
+                else
+                    desired_buff = $effect[Quantum of Moxie];
+            }
+            
+            if (desired_buff == $effect[none])
+            {
+                printSilent("Unknown buff \"" + word + "\".");
+                continue;
+            }
+            if (desired_buff.have_effect() > starting_effect_count[desired_buff]) //already happened
+                continue;
+            int desired_buff_id = __spy_effect_to_buff_id[desired_buff];
+            //Try to identify it, if we don't know about it:
+            if (__file_state["tab effect " + desired_buff_id] != "")
+            {
+                string [int] tab_effect = __file_state["tab effect " + desired_buff_id].split_string(",");
+                
+                if (tab_effect.count() == 2)
+                {
+                    int tab_id = tab_effect[0].to_int() - 1;
+                    int tab_length = tab_effect[1].to_int();
+                    if (tab_id >= 0 && tab_id <= 5 && tab_length >= 1 && tab_length <= 2)
+                    {
+                        pressTab(tab_id, tab_length);
+                    }
+                }
+            }
+            //FIXME this part, where it's already identified
+            //FIXME also don't re-do this if we already identified it earlier in another part of the loop
+            int breakout = 25;
+			while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+            {
+                if (desired_buff.have_effect() > starting_effect_count[desired_buff]) //we found it somehow, maybe the random tab
+                    break;
+                //Since we don't know the buff, we'll try identifying tabs.
+                //Compute every tab's known state:
+                boolean [int][int] tabs_known; //position, length
+                for tab_id from 0 to 5
+                {
+                    for tab_length from 1 to 2
+                    {
+                        tabs_known[tab_id][tab_length] = false;
+                    }
+                }
+                for buff_id from 0 to 11
+                {
+                    //copy and paste parsing code because returning multiple values
+                    string [int] tab_effect = __file_state["tab effect " + buff_id].split_string(",");
+                    
+                    if (tab_effect.count() == 2)
+                    {
+                        int tab_id = tab_effect[0].to_int() - 1;
+                        int tab_length = tab_effect[1].to_int();
+                        if (tab_id >= 0 && tab_id <= 5 && tab_length >= 1 && tab_length <= 2)
+                        {
+                            tabs_known[tab_id][tab_length] = true;
+                        }
+                    }
+                }
+                /*if (__setting_debug)
+                {
+                    //for now:
+                    for tab_id from 0 to 5
+                        tabs_known[tab_id][2] = true;
+                }*/
+                printSilent("tabs_known = " + tabs_known.to_json());
+                //Out of all the tabs currently active, are any unknown? If so, press them:
+                int chosen_tab = -1;
+                for tab_id from 0 to 5
+                {
+                    if (__state.tab_configuration[tab_id] > 0 && !tabs_known[tab_id][__state.tab_configuration[tab_id]])
+                    {
+                        chosen_tab = tab_id;
+                        break;
+                    }
+                }
+                if (chosen_tab != -1)
+                {
+                    //abort("YOU WERE THE CHOSEN " + chosen_tab);
+                    //press:
+                    actionPressTab(chosen_tab + 1);
+                    continue;
+                }
+                
+                //If there aren't any, we need to change our button state. Ideally, we want to spend the minimum number of button presses to reach a new tab to press.
+                //That sounds complicated...
+                //Go through each tab we don't know about, compute all numbers that tab is compatible with, compute the least distance (in button presses) to reach that point, pick the choice with the least presses?
+                //I suppose the ideal would be "compute the path that uses the least number of button presses" weighing likelyhood of reaching that tab, but that would be too much for ASH, I think.
+                //Also, try to take into account multiples? Like -100 might give us two new tabs instead of one? Or even three?
+                
+                //Though...
+                //Don't we only have six buttons?
+                //We could do a pre-pass, where if pressing one of the six buttons results in a new tab, press that. Taking into account if there are more than one unknown tabs for that.
+                //Mostly I'm suggesting this because I can't think of a generic way to do the "more than one tab" test with the generic solution.
+                //Well, hmm...
+                //By definition, the generic solution will only contain new tabs in the final state.
+                //As such, we can examine that final state, and count the number of unknown tabs.
+                //And use that for tiebreaking?
+                
+                
+                int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+                int current_briefcase_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+                
+                int best_found_path_length = -1;
+                int best_found_tab_id = -1;
+                int best_found_target_number = -1;
+                int best_found_tabs_at_final = -1;
+                for tab_id from 0 to 5
+                {
+                    for tab_length from 1 to 2
+                    {
+                        if (tabs_known[tab_id][tab_length]) continue;
+                        //Generate every possible number with this tab_id and length, and calculate the minimum distance to reach it:
+                        int [int] operating_configuration;
+                        for i from 0 to 5
+                            operating_configuration[i] = 0;
+                        
+                        operating_configuration[tab_id] = tab_length;
+                        while (true)
+                        {
+                            int operating_configuration_base_ten = convertTabConfigurationToBase10(operating_configuration, tab_permutation);
+                            int path_length = computePathLengthToNumber(operating_configuration_base_ten, current_briefcase_number);
+                            boolean should_replace = false;
+                            //FIXME increment operating_configuration keeping tab_id stable:
+                            if (best_found_path_length == -1 || path_length < best_found_path_length)
+                            {
+                                should_replace = true;
+                            }
+                            else if (path_length == best_found_path_length)
+                            {
+                                int found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
+                                if (found_tabs_at_final > best_found_tabs_at_final)
+                                    should_replace = true;
+                            }
+                            if (should_replace)
+                            {
+                                best_found_path_length = path_length;
+                                best_found_tab_id = tab_id;
+                                best_found_target_number = operating_configuration_base_ten;
+                                best_found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
+                            }
+                            boolean done = incrementTabConfiguration(operating_configuration, tab_id);
+                            if (done)
+                                break;
+                        }
+                    }
+                }
+                //Now, reach best_found_target_number:
+                if (best_found_target_number == -1)
+                {
+                    abort("Internal error: unable to compute a good target number.");
+                    return;
+                }
+                printSilent("best_found_target_number = " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
+                setTabsToNumber(best_found_target_number, true); //only press once, because if we discover the wrong button, maybe we'll find a new one...?
+            }
+            
+        }
+	}
+	
+}
+
+
+//FIXME lights four-six.
+//Once it's spaded.
+//... if it's spaded?
+//(what if it's never spaded)
+
+
+void makeTabsMove()
+{
+	//FIXME implement this
+	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON)
+	{
+		lightThirdLight();
+		return;
+	}
+	abort("FIXME make tabs move");
+}
+
+
+void recalculateVarious()
+{
+	calculateTabs();
+	if (__file_state["lightrings target number"] == "" && __file_state["lightrings observed"] != "")
+		calculatePossibleLightringsValues(false, false);
+}
+
+
 if (__setting_output_help_before_main)
 	outputHelp();
 void main(string command)
@@ -2280,7 +2822,9 @@ void main(string command)
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
 	{
 		if (!__setting_output_help_before_main)
+		{
 			outputHelp();
+		}
 		return;
 	}
 	if (__setting_output_help_before_main)
@@ -2333,6 +2877,15 @@ void main(string command)
 	if (command.stringHasPrefix("enchantment") || command.stringHasPrefix("e ") || command == "e")
 	{
 		handleEnchantmentCommand(command);
+		return;
+	}
+	
+	if (command.stringHasPrefix("buff") || command.stringHasPrefix("b ") || command == "b")
+	{
+        if (my_id() == 1557284)
+            handleBuffCommand(command);
+        else
+            printSilent("too beta");
 		return;
 	}
 	
@@ -2408,18 +2961,49 @@ void main(string command)
 	}
 	if (command.stringHasPrefix("button"))
 	{
-		int button_to_click = command.split_string(" ")[1].to_int();
-		if (button_to_click > 0 && button_to_click <= 6)
+		unlockButtons();
+		string [int] split_command = command.split_string(" ");
+		if (split_command.count() > 1)
 		{
-			actionPressButton(button_to_click);
+			int button_to_click = split_command[1].to_int();
+			if (button_to_click > 0 && button_to_click <= 6)
+			{
+				actionPressButton(button_to_click);
+				outputStatus();
+			}
 		}
 	}
 	//Internal:
+	if (command == "handle")
+	{
+		actionManipulateHandle();
+		if (__state.handle_up)
+			printSilent("Handle is now UP.");
+		else
+			printSilent("Handle is now DOWN.");
+	}
 	if (command == "test_dials")
 	{
 		int [int] dial_configuration = {0, 1, 2, 2, 1, 0};
 		actionSetDialsTo(dial_configuration);
 	}
+	if (command == "test_tab_construction")
+	{
+		for i from 1 to 6
+		{
+			for j from 0 to 2
+			{
+				string test = constructTabIdentifierForTab(i, j);
+				printSilent(i + ", " + j + ": " + test);
+			}
+		}
+	}
+    if (command == "test_tab_path")
+    {
+        int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
+        foreach number in $ints[111, 727, 654, 719]
+            printSilent("Path to " + number + ": " + computePathToNumber(number, current_number).listJoinComponents(", ") + " (length should be " + computePathLengthToNumber(number, current_number) + ")");
+    }
 	
 	//After all that, do other stuff:
 	//Collect drawers:
