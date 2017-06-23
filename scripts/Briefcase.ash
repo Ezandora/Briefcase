@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.0.16";
+string __briefcase_version = "1.0.17";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1597,8 +1597,7 @@ void outputHelp()
 	printSilent("");
 	printSilent("<strong>enchantment</strong> or <strong>e</strong> - changes briefcase enchantment (type \"briefcase enchantment\" for more information.)");
 	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
-	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles.");
-	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
+    //printSilent("<strong>buff</strong> or <strong>b</strong> - obtain tab buffs.");
 	printSilent("<strong>status</strong> - shows current briefcase status");
 	printSilent("<strong>help</strong>");
 	printSilent("");
@@ -1606,9 +1605,11 @@ void outputHelp()
 	printSilent("<strong>hose</strong> - unlocks martini hose");
 	printSilent("<strong>drink</strong> - acquires three splendid martinis");
 	printSilent("");
+	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
 	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
 	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
+	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles. <strong>You probably want the \"unlock\" command instead.</strong>");
 	printSilent("<strong>reset</strong> - resets the briefcase");
 }
 
@@ -2362,6 +2363,8 @@ int [int] computePathToNumber(int target_number, int starting_number)
         }
         buttons_pressed.listAppend(chosen);
         current_number += chosen;
+        if (current_number < 0) current_number = 0;
+        if (current_number > 728) current_number = 728;
     }
     return buttons_pressed;
 }
@@ -2411,6 +2414,8 @@ int computePathLengthToNumber(int target_number, int starting_number)
             break;
         }
         current_number += chosen;
+        if (current_number < 0) current_number = 0;
+        if (current_number > 728) current_number = 728;
         buttons_pressed++;
     }
     return buttons_pressed;
@@ -2556,6 +2561,8 @@ void handleBuffCommand(string command)
 		outputStatus();
 		chargeFlywheel();
 		unlockButtons();
+        discoverTabPermutation(true);
+		actionSetHandleTo(true);
         
         if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
         {
@@ -2646,6 +2653,7 @@ void handleBuffCommand(string command)
                     }
                 }
             }
+            
             //FIXME this part, where it's already identified
             //FIXME also don't re-do this if we already identified it earlier in another part of the loop
             int breakout = 25;
@@ -2684,7 +2692,7 @@ void handleBuffCommand(string command)
                     for tab_id from 0 to 5
                         tabs_known[tab_id][2] = true;
                 }*/
-                printSilent("tabs_known = " + tabs_known.to_json());
+                //printSilent("tabs_known = " + tabs_known.to_json());
                 //Out of all the tabs currently active, are any unknown? If so, press them:
                 int chosen_tab = -1;
                 for tab_id from 0 to 5
@@ -2739,8 +2747,10 @@ void handleBuffCommand(string command)
                         operating_configuration[tab_id] = tab_length;
                         while (true)
                         {
+                            //printSilent("operating_configuration = " + operating_configuration.listJoinComponents(", "));
                             int operating_configuration_base_ten = convertTabConfigurationToBase10(operating_configuration, tab_permutation);
                             int path_length = computePathLengthToNumber(operating_configuration_base_ten, current_briefcase_number);
+                            //printSilent("operating_configuration_base_ten = " + operating_configuration_base_ten + ", path_length = " + path_length);
                             boolean should_replace = false;
                             //FIXME increment operating_configuration keeping tab_id stable:
                             if (best_found_path_length == -1 || path_length < best_found_path_length)
@@ -2762,7 +2772,9 @@ void handleBuffCommand(string command)
                             }
                             boolean done = incrementTabConfiguration(operating_configuration, tab_id);
                             if (done)
+                            {
                                 break;
+                            }
                         }
                     }
                 }
@@ -2919,13 +2931,9 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
-		if (!can_interact())
-		{
-			boolean yes = user_confirm("Are you sure you want to solve the briefcase? You might want to wait until aftercore, this takes a lot of clicks.");
-			if (!yes)
-				return;
-			
-		}
+        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Solving the puzzles is not worthwhile at the moment, and may break the buff command.");
+        if (!yes)
+            return;
 		lightSecondLight();
 		lightThirdLight();
 	}
