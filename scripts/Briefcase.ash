@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.1";
+string __briefcase_version = "1.1.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1619,6 +1619,7 @@ void outputHelp()
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
 	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles. <strong>You probably want the \"unlock\" command instead.</strong>");
 	printSilent("<strong>reset</strong> - resets the briefcase");
+    printSilent("<strong>stop</strong> - stops moving tabs");
 }
 
 void outputStatus()
@@ -2721,7 +2722,7 @@ void handleBuffCommand(string command)
             if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
             {
                 //This could theoreticaly be supported, but it would be complicated.
-                printSilent("Buff command disabled while tabs are moving. Reset the briefcase? Or wind down the tabs?");
+                printSilent("Buff command disabled while tabs are moving. Try \"briefcase stop\".");
                 return;
             }
         }
@@ -3133,6 +3134,43 @@ void main(string command)
 			}
 		}
 	}
+    if (command == "stop")
+    {
+        boolean tabs_are_moving = false;
+        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+        {
+            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
+            actionVisitBriefcase();
+            
+            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
+                tabs_are_moving = true;
+        }
+        if (tabs_are_moving)
+        {
+            actionSetHandleTo(true);
+            int breakout = 23;
+            while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+            {
+                //Press the -100 button over and over again:
+                if (__state.tab_configuration.count() == 6 && __state.tab_configuration[0] == 0 && __state.tab_configuration[1] == 0 && __state.tab_configuration[2] == 0 && __state.tab_configuration[3] == 0 && __state.tab_configuration[4] == 0 && __state.tab_configuration[5] == 0)
+                    break;
+                breakout -= 1;
+                actionPressButton(discoverButtonWithFunctionID(4, false, false) + 1);
+            }
+            tabs_are_moving = false;
+            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
+            actionVisitBriefcase();
+            
+            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
+                tabs_are_moving = true;
+            if (tabs_are_moving)
+                printSilent("Unable to stop tabs.");
+            else
+                printSilent("Tabs stopped.");
+        }
+        else
+            printSilent("Tabs stopped.");
+    }
 	//Internal:
     if (command == "discover_permutation")
     {
