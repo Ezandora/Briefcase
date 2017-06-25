@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.0.17";
+string __briefcase_version = "1.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -11,6 +11,8 @@ boolean __setting_debug = false;
 boolean __setting_confirm_actions_that_will_use_a_click = false;
 
 boolean __setting_output_help_before_main = false;
+
+boolean __setting_do_not_actually_use_clicks = false; //FIXME only partially implemented, and only use with confirm_actions
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -324,6 +326,20 @@ string convertDialConfigurationToString(int [int] dial_configuration)
 string [int] BriefcaseStateDescription(BriefcaseState state)
 {
 	string [int] description;
+    
+    int clicks_used = MAX(get_property("_kgbClicksUsed").to_int(), __file_state["_clicks"].to_int());
+	
+	string clicks_line = "Clicks used: " + clicks_used;
+	int clicks_limit = 11;
+	if (__file_state["_flywheel charged"].to_boolean())
+		clicks_limit = 22;
+		
+	int clicks_remaining = MAX(0, clicks_limit - clicks_used);
+	if (clicks_remaining > 0)
+		clicks_line += " (<strong>" + clicks_remaining + "</strong>? remaining)";
+	description.listAppend(clicks_line);
+    
+    
 	string dials_line = "Dials: ";
 	dials_line += convertDialConfigurationToString(state.dial_configuration);
 	description.listAppend(dials_line);
@@ -370,18 +386,6 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 	if (state.last_action_results.count() > 0)
 		description.listAppend("Last action results: " + state.last_action_results.listInvert().listJoinComponents(", "));
 	
-	int clicks_used = MAX(get_property("_kgbClicksUsed").to_int(), __file_state["_clicks"].to_int());
-	
-	string clicks_line = "Clicks used: " + clicks_used;
-	int clicks_limit = 11;
-	if (__file_state["_flywheel charged"].to_boolean())
-		clicks_limit = 22;
-		
-	int clicks_remaining = MAX(0, clicks_limit - clicks_used);
-	if (clicks_remaining > 0)
-		clicks_line += " (<strong>" + clicks_remaining + "</strong>? remaining)";
-	
-	description.listAppend(clicks_line);
 	if (__file_state["_out of clicks for the day"].to_boolean())
 		description.listAppend("<font color=\"red\">Out of clicks for the day.</font>");
 	return description;
@@ -806,6 +810,8 @@ void actionTurnCrank()
 
 void actionPressButton(int button_id) //1 through 6
 {
+    if (button_id < 1 || button_id > 6) return;
+    
 	string line = "Clicking button " + button_id + ".";
 	if (__file_state["B" + button_id + " tab change"] != "" && __state.handle_up)
 	{
@@ -820,6 +826,8 @@ void actionPressButton(int button_id) //1 through 6
 	printSilent(line, "gray");
 	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
+    if (__setting_do_not_actually_use_clicks)
+        return;
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
 }
 
@@ -1597,7 +1605,7 @@ void outputHelp()
 	printSilent("");
 	printSilent("<strong>enchantment</strong> or <strong>e</strong> - changes briefcase enchantment (type \"briefcase enchantment\" for more information.)");
 	printSilent("<strong>unlock</strong> - unlocks most everything we know how to unlock.");
-    //printSilent("<strong>buff</strong> or <strong>b</strong> - obtain tab buffs.");
+    printSilent("<strong>buff</strong> or <strong>b</strong> - obtain tab buffs.");
 	printSilent("<strong>status</strong> - shows current briefcase status");
 	printSilent("<strong>help</strong>");
 	printSilent("");
@@ -1660,6 +1668,7 @@ void outputStatus()
 int [int] discoverTabPermutation(boolean allow_actions)
 {
 	if (__file_state["tab permutation"] != "") return stringToIntIntList(__file_state["tab permutation"]);
+    unlockButtons();
 	actionSetHandleTo(true);
 	int breakout = 111;
 	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && false) //it totally can do this now. maybe.
@@ -1682,6 +1691,8 @@ int [int] discoverTabPermutation(boolean allow_actions)
 		boolean [int][int] valid_button_functions = calculateTabs();
 		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
 		
+        if (__file_state["tab permutation"] != "") //second test
+            break;
 		int chosen_function_id_to_use = 5; //100
 		
 		int two_count = 0;
@@ -1728,7 +1739,7 @@ int [int] discoverTabPermutation(boolean allow_actions)
 
 
 boolean __discover_button_with_function_id_did_press_button = false; //secondary return
-int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
+int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing, boolean only_press_once)
 {
 	if (!private_is_rescursing)
 		__discover_button_with_function_id_did_press_button = false;
@@ -1751,13 +1762,17 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 		if (current_number == 0 && (function_id == 0 || function_id == 2 || function_id == 4))
 		{
 			//they want to discover a negative number and we're at zero
-			actionPressButton(discoverButtonWithFunctionID(5, true) + 1); //add 100 first
+			actionPressButton(discoverButtonWithFunctionID(5, true, only_press_once) + 1); //add 100 first
+            if (only_press_once)
+                break;
 			continue;
 		}
 		else if (current_number == 728 && (function_id == 1 || function_id == 3 || function_id == 5))
 		{
 			//they want to discover a positive number and we're at zero
-			actionPressButton(discoverButtonWithFunctionID(4, true) + 1); //subtract 100 first
+			actionPressButton(discoverButtonWithFunctionID(4, true, only_press_once) + 1); //subtract 100 first
+            if (only_press_once)
+                break;
 			continue;
 		}
 		//printSilent("valid_button_functions = " + valid_button_functions.to_json());
@@ -1777,6 +1792,8 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 		}
 		__discover_button_with_function_id_did_press_button = true;
 		actionPressButton(next_chosen_button + 1);
+        if (only_press_once)
+            break;
 	}
 	for i from 1 to 6
 	{
@@ -1784,6 +1801,11 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
 			return i - 1;
 	}
 	return -1;
+}
+
+int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing)
+{
+    return discoverButtonWithFunctionID(function_id, private_is_rescursing, false);
 }
 
 int discoverButtonWithFunctionID(int function_id)
@@ -1812,43 +1834,50 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, int m
 		
 		if (delta > 50 || desired_base_ten_number == 728)
 		{
-			int button_id = discoverButtonWithFunctionID(5);
+			int button_id = discoverButtonWithFunctionID(5, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else if (desired_base_ten_number == 0)
 		{
-			int button_id = discoverButtonWithFunctionID(4);
+			int button_id = discoverButtonWithFunctionID(4, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else if (delta > 5)
 		{
-			int button_id = discoverButtonWithFunctionID(3);
+			int button_id = discoverButtonWithFunctionID(3, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else if (delta > 0)
 		{
-			int button_id = discoverButtonWithFunctionID(1);
+			int button_id = discoverButtonWithFunctionID(1, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else if (delta < -50)
 		{
-			int button_id = discoverButtonWithFunctionID(4);
+			int button_id = discoverButtonWithFunctionID(4, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else if (delta < -5)
 		{
-			int button_id = discoverButtonWithFunctionID(2);
+			int button_id = discoverButtonWithFunctionID(2, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
 		else
 		{
-			int button_id = discoverButtonWithFunctionID(0);
+			int button_id = discoverButtonWithFunctionID(0, false, true);
+            if (button_id == -1) break;
 			if (!__discover_button_with_function_id_did_press_button)
 				actionPressButton(button_id + 1);
 		}
@@ -2274,6 +2303,11 @@ void handleEnchantmentCommand(string command)
 				desired_slot_configuration[2] = 5;
 			else if (word == "skills")
 				desired_slot_configuration[2] = 6;
+            else
+            {
+                printSilent("Unknown enchantment \"" + word + "\".");
+                continue;
+            }
 		}
 		int [int] max_for_slot = {4, 7, 7};
 		int [int] base_button_for_slot = {1, 3, 5};
@@ -2317,6 +2351,31 @@ void handleEnchantmentCommand(string command)
 			}
 		}
 	}
+}
+Record Tab
+{
+    int id;
+    int length;
+    boolean valid;
+};
+
+Tab TabFromFileBuff(int buff_id)
+{
+    Tab result;
+    string [int] tab_effect = __file_state["tab effect " + buff_id].split_string(",");
+    
+    if (tab_effect.count() == 2)
+    {
+        int tab_id = tab_effect[0].to_int() - 1;
+        int tab_length = tab_effect[1].to_int();
+        if (tab_id >= 0 && tab_id <= 5 && tab_length >= 1 && tab_length <= 2)
+        {
+            result.id = tab_id;
+            result.length = tab_length;
+            result.valid = true;
+        }
+    }
+    return result;
 }
 
 int [int] computePathToNumber(int target_number, int starting_number)
@@ -2506,7 +2565,7 @@ int computeBestTargetNumberForTab(int tab_id, int tab_length, boolean [int][int]
         abort("Internal error: unable to compute a good target number.");
         return -1;
     }
-    printSilent("best_found_target_number = " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
+    //printSilent("best_found_target_number = " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
     return best_found_target_number;
 }
 
@@ -2538,6 +2597,64 @@ effect [int] __spy_buff_id_to_effect = {1:$effect[Punch Another Day], 2:$effect[
 int [effect] __spy_effect_to_buff_id = {$effect[Punch Another Day]:1, $effect[For Your Brain Only]:2, $effect[Quantum of Moxie]:3, $effect[License to Punch]:4, $effect[Thunderspell]:5, $effect[Goldentongue]:6, $effect[The Living Hitpoints]:7, $effect[Initiative and Let Die]:8, $effect[A View to Some Meat]:9, $effect[Items Are Forever]:10, $effect[The Spy Who Loved XP]:11};
 string [effect] __buff_descriptions = {$effect[Punch Another Day]:"+30 muscle", $effect[For Your Brain Only]:"+30 myst", $effect[Quantum of Moxie]:"+30 moxie", $effect[License to Punch]:"+100% muscle", $effect[Thunderspell]:"+100% myst", $effect[Goldentongue]:"+100% moxie", $effect[The Living Hitpoints]:"+100% HP/MP", $effect[Initiative and Let Die]:"+50% init", $effect[A View to Some Meat]:"+100% meat", $effect[Items Are Forever]:"+50% item", $effect[The Spy Who Loved XP]:"+5 stats/fight"};
 
+void outputBuffHelpLine(boolean [effect] buffs_know_about, Tab [effect] buffs_to_tabs, boolean [int][int] tabs_known, boolean [string] commands, effect buff_effect)
+{
+    boolean is_known = buffs_know_about[buff_effect];
+    Tab t = buffs_to_tabs[buff_effect];
+    boolean within_configuration = is_known && (__state.tab_configuration[t.id] == t.length);
+    
+    int clicks_to_reach = 0;
+    if (is_known && !within_configuration)
+    {
+        int best_target_number = computeBestTargetNumberForTab(t.id, t.length, tabs_known);
+        int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+        int current_briefcase_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+        clicks_to_reach = computePathLengthToNumber(best_target_number, current_briefcase_number);
+    }
+
+    buffer line;
+    boolean first = true;
+    foreach command in commands
+    {
+        if (first)
+        {
+            first = false;
+        }
+        else
+        {
+            line.append(", or ");
+        }
+        
+        line.append("<strong>");
+        if (within_configuration)
+            line.append("<font color=\"red\">");
+        line.append(command);
+        if (within_configuration)
+            line.append("</font>");
+        line.append("</strong>");
+    }
+    line.append(": ");
+    line.append(__buff_descriptions[buff_effect]);
+    
+    line.append(" (");
+    if (!is_known)
+        line.append("not yet known");
+    else
+    {
+        if (within_configuration)
+            line.append("active");
+        else
+            line.append(clicks_to_reach + " click" + (clicks_to_reach > 1 ? "s" : "") + " to reach");
+    }
+    line.append(")");
+    
+    string colour = "";
+    if (!is_known)
+        colour = "#444444";
+    
+    printSilent(line, colour);
+}
+
 void handleBuffCommand(string command)
 {
 	string [int] words = command.split_string(" ");
@@ -2547,14 +2664,45 @@ void handleBuffCommand(string command)
 		
 		//What buffs do we know about?
 		boolean [effect] buffs_know_about;
+        //boolean [effect] buffs_within_current_configuration;
+        Tab [effect] buffs_to_tabs;
+        boolean [int][int] tabs_known;
 		for buff_id from 1 to 11
 		{
 			if (__file_state["tab effect " + buff_id] != "")
 			{
-				buffs_know_about[__spy_buff_id_to_effect[buff_id]] = true;
+                effect buff_effect = __spy_buff_id_to_effect[buff_id];
+				buffs_know_about[buff_effect] = true;
+                Tab t = TabFromFileBuff(buff_id);
+                if (t.valid)
+                    tabs_known[t.id][t.length] = true;
+                //if (__state.tab_configuration[t.id] == t.length)
+                    //buffs_within_current_configuration[buff_effect] = true;
+                buffs_to_tabs[buff_effect] = t;
 			}
 		}
-		printSilent("buffs_know_about = " + buffs_know_about.to_json());
+        printSilent("The buff command will let you use the briefcase's tab buffs. Each one takes at least three clicks, plus discovery time, and lasts for fifty turns.");
+        printSilent("");
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[meat], $effect[A View to Some Meat]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[item], $effect[Items Are Forever]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[init], $effect[Initiative and Let Die]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[experience,xp], $effect[The Spy Who Loved XP]);
+        printSilent("");
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[hp,mp], $effect[The Living Hitpoints]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[muscle], $effect[License to Punch]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[myst], $effect[Thunderspell]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[moxie], $effect[Goldentongue]);
+        printSilent("");
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[muscle_absolute], $effect[Punch Another Day]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[myst_absolute], $effect[For Your Brain Only]);
+        outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[moxie_absolute], $effect[Quantum of Moxie]);
+        
+        printSilent("");
+        printSilent("The command \"briefcase buff item\" would spend clicks until we obtained the +50% item buff. \"briefcase buff meat\" would do the same for +meat.");
+        //printSilent("<strong>meat</strong>: +100% meat (known)");
+        //printSilent("<strong>items</strong>: +50% item (known, ready)", "red");
+		//printSilent("buffs_know_about = " + buffs_know_about.to_json());
+		//printSilent("buffs_within_current_configuration = " + buffs_within_current_configuration.to_json());
 	}
 	else
 	{	
@@ -2592,6 +2740,8 @@ void handleBuffCommand(string command)
                 desired_buff = $effect[A View to Some Meat];
             else if (word == "item" || word == "items")
                 desired_buff = $effect[Items Are Forever];
+            else if (word == "init" || word == "initiative")
+                desired_buff = $effect[Initiative and Let Die];
             else if (word == "xp" || word == "exp" || word == "experience" || word == "stats")
                 desired_buff = $effect[The Spy Who Loved XP];
             else if (word == "hp" || word == "mp" || word == "hitpoints")
@@ -2602,13 +2752,13 @@ void handleBuffCommand(string command)
                 desired_buff = $effect[For Your Brain Only];
             else if (word == "moxie_absolute" || word == "moxie_abs" || word == "quantum")
                 desired_buff = $effect[Quantum of Moxie];
-            else if (word == "muscle_percentage" || word == "muscle_per" || word == "license")
+            else if (word == "muscle_percentage" || word == "muscle_per" || word == "license" || word == "muscle")
                 desired_buff = $effect[License to Punch];
-            else if (word == "myst_percentage" || word == "myst_per" || word == "thunderspell")
+            else if (word == "myst_percentage" || word == "myst_per" || word == "thunderspell" || word == "myst" || word == "mysticality")
                 desired_buff = $effect[Thunderspell];
-            else if (word == "moxie_percentage" || word == "moxie_per" || word == "goldentongue")
+            else if (word == "moxie_percentage" || word == "moxie_per" || word == "goldentongue" || word == "moxie")
                 desired_buff = $effect[Goldentongue];
-            else if (word == "muscle")
+            /*else if (word == "muscle")
             {
                 if (my_basestat($stat[muscle]) >= 30)
                     desired_buff = $effect[License to Punch];
@@ -2628,7 +2778,7 @@ void handleBuffCommand(string command)
                     desired_buff = $effect[Goldentongue];
                 else
                     desired_buff = $effect[Quantum of Moxie];
-            }
+            }*/
             
             if (desired_buff == $effect[none])
             {
@@ -2641,16 +2791,10 @@ void handleBuffCommand(string command)
             //Try to identify it, if we don't know about it:
             if (__file_state["tab effect " + desired_buff_id] != "")
             {
-                string [int] tab_effect = __file_state["tab effect " + desired_buff_id].split_string(",");
-                
-                if (tab_effect.count() == 2)
+                Tab t = TabFromFileBuff(desired_buff_id);
+                if (t.valid)
                 {
-                    int tab_id = tab_effect[0].to_int() - 1;
-                    int tab_length = tab_effect[1].to_int();
-                    if (tab_id >= 0 && tab_id <= 5 && tab_length >= 1 && tab_length <= 2)
-                    {
-                        pressTab(tab_id, tab_length);
-                    }
+                    pressTab(t.id, t.length);
                 }
             }
             
@@ -2664,26 +2808,23 @@ void handleBuffCommand(string command)
                 //Since we don't know the buff, we'll try identifying tabs.
                 //Compute every tab's known state:
                 boolean [int][int] tabs_known; //position, length
+                boolean [int][int] desirable_tabs;
                 for tab_id from 0 to 5
                 {
                     for tab_length from 1 to 2
                     {
                         tabs_known[tab_id][tab_length] = false;
+                        desirable_tabs[tab_id][tab_length] = false;
                     }
                 }
                 for buff_id from 0 to 11
                 {
-                    //copy and paste parsing code because returning multiple values
-                    string [int] tab_effect = __file_state["tab effect " + buff_id].split_string(",");
-                    
-                    if (tab_effect.count() == 2)
+                    Tab t = TabFromFileBuff(buff_id);
+                    if (t.valid)
                     {
-                        int tab_id = tab_effect[0].to_int() - 1;
-                        int tab_length = tab_effect[1].to_int();
-                        if (tab_id >= 0 && tab_id <= 5 && tab_length >= 1 && tab_length <= 2)
-                        {
-                            tabs_known[tab_id][tab_length] = true;
-                        }
+                        tabs_known[t.id][t.length] = true;
+                        if (buff_id == 10 || buff_id == 9) //+item, +meat
+                            desirable_tabs[t.id][t.length] = true;
                     }
                 }
                 /*if (__setting_debug)
@@ -2734,6 +2875,7 @@ void handleBuffCommand(string command)
                 int best_found_tab_id = -1;
                 int best_found_target_number = -1;
                 int best_found_tabs_at_final = -1;
+                int best_found_desirable_tabs = -1;
                 for tab_id from 0 to 5
                 {
                     for tab_length from 1 to 2
@@ -2752,6 +2894,12 @@ void handleBuffCommand(string command)
                             int path_length = computePathLengthToNumber(operating_configuration_base_ten, current_briefcase_number);
                             //printSilent("operating_configuration_base_ten = " + operating_configuration_base_ten + ", path_length = " + path_length);
                             boolean should_replace = false;
+                            int desirable_tabs_count = 0;
+                            for i from 0 to 5
+                            {
+                                if (desirable_tabs[i][operating_configuration[i]])
+                                    desirable_tabs_count++;
+                            }
                             //FIXME increment operating_configuration keeping tab_id stable:
                             if (best_found_path_length == -1 || path_length < best_found_path_length)
                             {
@@ -2762,6 +2910,12 @@ void handleBuffCommand(string command)
                                 int found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
                                 if (found_tabs_at_final > best_found_tabs_at_final)
                                     should_replace = true;
+                                if (desirable_tabs_count > best_found_desirable_tabs)
+                                {
+                                    should_replace = true;
+                                    //printSilent("desirable_tabs_count = " + desirable_tabs_count + ", best_found_desirable_tabs = " + best_found_desirable_tabs);
+                                }
+                                
                             }
                             if (should_replace)
                             {
@@ -2769,6 +2923,7 @@ void handleBuffCommand(string command)
                                 best_found_tab_id = tab_id;
                                 best_found_target_number = operating_configuration_base_ten;
                                 best_found_tabs_at_final = countNumberOfUnknownTabs(operating_configuration, tabs_known);
+                                best_found_desirable_tabs = desirable_tabs_count;
                             }
                             boolean done = incrementTabConfiguration(operating_configuration, tab_id);
                             if (done)
@@ -2894,10 +3049,7 @@ void main(string command)
 	
 	if (command.stringHasPrefix("buff") || command.stringHasPrefix("b ") || command == "b")
 	{
-        if (my_id() == 1557284)
-            handleBuffCommand(command);
-        else
-            printSilent("too beta");
+        handleBuffCommand(command);
 		return;
 	}
 	
@@ -2982,6 +3134,10 @@ void main(string command)
 		}
 	}
 	//Internal:
+    if (command == "discover_permutation")
+    {
+        discoverTabPermutation(true);
+    }
 	if (command == "handle")
 	{
 		actionManipulateHandle();
