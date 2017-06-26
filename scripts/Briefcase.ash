@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.1.1";
+string __briefcase_version = "1.1.2";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1686,6 +1686,7 @@ int [int] discoverTabPermutation(boolean allow_actions)
 			return blank;
 		}
 	}
+    boolean trying_negative = false;
 	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
 		breakout -= 1;
@@ -1702,8 +1703,13 @@ int [int] discoverTabPermutation(boolean allow_actions)
 			if (value == 2)
 				two_count++;
 		}
-		if (two_count >= 5) //the number is almost certainly too high
+        if (__state.tab_configuration[0] == 0 && __state.tab_configuration[1] == 0 && __state.tab_configuration[2] == 0 && __state.tab_configuration[3] == 0 && __state.tab_configuration[4] == 0 && __state.tab_configuration[5] == 0)
+            trying_negative = false;
+		if (two_count >= 5 || trying_negative) //the number is almost certainly too high
+        {
 			chosen_function_id_to_use = 2; //-10. not ideal, but prevents ping-ponging
+            trying_negative = true;
+        }
 		int next_chosen_button = -1;
 		foreach button_actual_id in valid_button_functions
 		{
