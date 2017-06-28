@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.1.3";
+string __briefcase_version = "1.1.4";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2065,7 +2065,7 @@ void collectSplendidMartinis()
 			break;
 		setTabsToNumber(728, false, 726); //FIXME don't bother if we're >= 725...? but, the moving tabs?
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
-		if (current_number >= 727)
+		if (current_number >= 726)
 		{
 			actionCollectMartiniHose();
 		}
