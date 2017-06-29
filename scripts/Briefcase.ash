@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.1.4";
+string __briefcase_version = "1.1.5";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -742,6 +742,108 @@ void updateState(buffer page_text)
 {
 	updateState(page_text, ACTION_TYPE_NONE, -1);
 }
+
+int [int] computePathToNumber(int target_number, int starting_number)
+{
+    int current_number = starting_number;
+    int [int] buttons_pressed;
+    while (current_number != target_number)
+    {
+        int delta = target_number - current_number;
+        
+        int chosen = 0;
+        if (delta > 50 || target_number == 728)
+        {
+            chosen = 100;
+        }
+        else if (target_number == 0)
+        {
+            chosen = -100;
+        }
+        else if (delta > 5)
+        {
+            chosen = 10;
+        }
+        else if (delta > 0)
+        {
+            chosen = 1;
+        }
+        else if (delta < -50)
+        {
+            chosen = -100;
+        }
+        else if (delta < -5)
+        {
+            chosen = -10;
+        }
+        else
+        {
+            chosen = -1;
+        }
+        if (chosen == 0)
+        {
+            printSilent("Internal error computing " + current_number + " to " + target_number);
+            break;
+        }
+        buttons_pressed.listAppend(chosen);
+        current_number += chosen;
+        if (current_number < 0) current_number = 0;
+        if (current_number > 728) current_number = 728;
+    }
+    return buttons_pressed;
+}
+
+//Same as computePathToNumber, minus the overhead(?) of managing a list.
+int computePathLengthToNumber(int target_number, int starting_number)
+{
+    int current_number = starting_number;
+    int buttons_pressed = 0;
+    
+    while (current_number != target_number)
+    {
+        int delta = target_number - current_number;
+        
+        int chosen = 0;
+        if (delta > 50 || target_number == 728)
+        {
+            chosen = 100;
+        }
+        else if (target_number == 0)
+        {
+            chosen = -100;
+        }
+        else if (delta > 5)
+        {
+            chosen = 10;
+        }
+        else if (delta > 0)
+        {
+            chosen = 1;
+        }
+        else if (delta < -50)
+        {
+            chosen = -100;
+        }
+        else if (delta < -5)
+        {
+            chosen = -10;
+        }
+        else
+        {
+            chosen = -1;
+        }
+        if (chosen == 0)
+        {
+            printSilent("Internal error computing " + current_number + " to " + target_number);
+            break;
+        }
+        current_number += chosen;
+        if (current_number < 0) current_number = 0;
+        if (current_number > 728) current_number = 728;
+        buttons_pressed++;
+    }
+    return buttons_pressed;
+}
 void actionSetDialsTo(int [int] dial_configuration)
 {
 	int breakout = 11 * 6 + 1;
@@ -866,7 +968,7 @@ void actionCollectMartiniHose()
 {
 	printSilent("Collecting from martini hose.", "gray");
 	updateState(visit_url("place.php?whichplace=kgb&action=kgb_dispenser", false, false));
-	if (__state.last_action_results["Hmm. Nothing happens. Looks like it's out of juice for today."])
+	if (__state.last_action_results["Hmm.  Nothing happens.  Looks like it's out of juice for today."])
 	{
 		__file_state["_martini hose collected"] = 3;
 		writeFileState();
@@ -1820,7 +1922,7 @@ int discoverButtonWithFunctionID(int function_id)
 	return discoverButtonWithFunctionID(function_id, false);
 }
 
-void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, int minimum_allowed_number)
+void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, boolean [int] other_allowed_numbers)
 {
 	//int convertTabConfigurationToBase10(int [int] configuration, int [int] permutation)
 	discoverTabPermutation(true);
@@ -1834,7 +1936,7 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, int m
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
 		if (current_number == desired_base_ten_number)
 			return;
-        if (minimum_allowed_number != -1 && current_number >= minimum_allowed_number)
+        if (other_allowed_numbers[current_number])
             return;
 		int delta = desired_base_ten_number - current_number;
 		//printSilent("desired_base_ten_number = " + desired_base_ten_number + " current_number = " + current_number + " delta = " + delta);
@@ -1895,7 +1997,8 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, int m
 
 void setTabsToNumber(int desired_base_ten_number, boolean only_press_once)
 {
-    setTabsToNumber(desired_base_ten_number, only_press_once, -1);
+    boolean [int] blank;
+    setTabsToNumber(desired_base_ten_number, only_press_once, blank);
 }
 
 void setTabsToNumber(int desired_base_ten_number)
@@ -1932,10 +2035,11 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 		visited_numbers[convertTabConfigurationToBase10(entry.tab_configuration, permutation)] = true;
 		
 		lightrings_entries[lightrings_entries.count()] = entry;
-		//printSilent(lightrings_id + " on " + tab_configuration.listJoinComponents(", "));
+		//printSilent(entry.lightrings_id + " on " + entry.tab_configuration.listJoinComponents(", "));
 	}
 	//printSilent("lightrings_entries = " + lightrings_entries.to_json());
 
+    //lightrings id -> monotonic key -> tab configurations
 	int [int][int][int] lightrings_seen_values;
 	for lightrings_id from 0 to 6
 	{
@@ -1967,7 +2071,7 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 	//Process lightrings:
 	
 	int [int][int][int] lightrings_range_modifications = 
-	{{},
+	{{{-1000, -101}, {101, 1000}},
 	{{-100, -76}, {76, 100}},
 	{{-75, -51}, {51, 75}},
 	{{-50, -26}, {26, 50}},
@@ -1976,12 +2080,13 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 	{{-5, 5}}};
 	//printSilent("lightrings_range_modifications = " + lightrings_range_modifications.to_json());
 	
-	for lightrings_id from 1 to 6
+	for lightrings_id from 0 to 6
 	{
 		foreach i in lightrings_seen_values[lightrings_id]
 		{
 			int [int] tab_configuration = lightrings_seen_values[lightrings_id][i];
 			int base_ten = convertTabConfigurationToBase10(tab_configuration, permutation);
+            //printSilent("base_ten = " + base_ten);
 			//The answer has to be in a specific range. Invalidate all numbers that aren't in that range.
 			for answer from 0 to 728
 			{
@@ -1993,8 +2098,12 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 					if (answer >= base_ten + range_relative[0] && answer <= base_ten + range_relative[1])
 						is_valid = true;
 				}
+                //if (!is_valid && possible_lightrings_numbers[answer])
+                    //printSilent(base_ten + " invalidating " + answer);
 				if (!is_valid)
+                {
 					possible_lightrings_numbers[answer] = false;
+                }
 			}
 		}
 	}
@@ -2011,7 +2120,7 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 		__file_state["lightrings target number"] = possible_lightrings_answers_final[0];
 		writeFileState();
 	}
-	//printSilent("possible_lightrings_answers_final = " + possible_lightrings_answers_final.listJoinComponents(", "));
+	//printSilent("possible_lightrings_answers_final (" + possible_lightrings_answers_final.count() + ") = " + possible_lightrings_answers_final.listJoinComponents(", "));
 	return possible_lightrings_answers_final;
 }
 
@@ -2042,7 +2151,20 @@ void lightThirdLight()
 		}
 		
 		//Only press once, since we want to recalculate lightrings every press:
-		setTabsToNumber(possible_lightrings_values[0], true);
+        //Pick the one nearest to us:
+        int picked_number = -1;
+        int picked_path_length = -1;
+        int current_number_base_ten = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
+        foreach key, value in possible_lightrings_values
+        {
+            int length = computePathLengthToNumber(value, current_number_base_ten);
+            if (picked_number == -1 || picked_path_length > length)
+            {
+                picked_number = value;
+                picked_path_length = length;
+            }
+        }
+		setTabsToNumber(picked_number, true);
 	}
 	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_out of clicks for the day"].to_boolean())
 	{
@@ -2059,13 +2181,48 @@ void collectSplendidMartinis()
 	}
 	discoverButtonWithFunctionID(5); //100
 	unlockMartiniHose();
+    
+    int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+    
+    boolean [int] valid_splendid_numbers = $ints[485, 647, 701, 719, 725, 727, 728];
 	for i from 1 to 3
 	{
 		if (__file_state["_martini hose collected"].to_int() >= 3)
 			break;
-		setTabsToNumber(728, false, 726); //FIXME don't bother if we're >= 725...? but, the moving tabs?
-		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
-		if (current_number >= 726)
+        
+        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && !(valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+        {
+            int starting_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+            //Tabs may be moving, visit briefcase a bit to change to valid state?
+            int smallest_delta = -1;
+            foreach valid_number in valid_splendid_numbers
+            {
+                if (valid_number >= starting_number) continue;
+                int delta = starting_number - valid_number;
+                if (smallest_delta == -1 || delta < smallest_delta)
+                    smallest_delta = delta;
+            }
+            
+            if (smallest_delta < 55 && smallest_delta > 0)
+            {
+                //printSilent("smallest_delta = " + smallest_delta);
+                for i from 1 to smallest_delta
+                {
+                    if (valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation))
+                        break;
+                    int before = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+                    actionVisitBriefcase();
+                    int now = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+                    //printSilent("before = " + before + " now = " + now);
+                    if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) == starting_number) //not moving
+                        break;
+                }
+            }
+        }
+        if (!(valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+            setTabsToNumber(728, false, valid_splendid_numbers);
+		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+		if (valid_splendid_numbers contains current_number)
 		{
 			actionCollectMartiniHose();
 		}
@@ -2385,107 +2542,6 @@ Tab TabFromFileBuff(int buff_id)
     return result;
 }
 
-int [int] computePathToNumber(int target_number, int starting_number)
-{
-    int current_number = starting_number;
-    int [int] buttons_pressed;
-    while (current_number != target_number)
-    {
-        int delta = target_number - current_number;
-        
-        int chosen = 0;
-        if (delta > 50 || target_number == 728)
-        {
-            chosen = 100;
-        }
-        else if (target_number == 0)
-        {
-            chosen = -100;
-        }
-        else if (delta > 5)
-        {
-            chosen = 10;
-        }
-        else if (delta > 0)
-        {
-            chosen = 1;
-        }
-        else if (delta < -50)
-        {
-            chosen = -100;
-        }
-        else if (delta < -5)
-        {
-            chosen = -10;
-        }
-        else
-        {
-            chosen = -1;
-        }
-        if (chosen == 0)
-        {
-            printSilent("Internal error computing " + current_number + " to " + target_number);
-            break;
-        }
-        buttons_pressed.listAppend(chosen);
-        current_number += chosen;
-        if (current_number < 0) current_number = 0;
-        if (current_number > 728) current_number = 728;
-    }
-    return buttons_pressed;
-}
-
-//Same as computePathToNumber, minus the overhead(?) of managing a list.
-int computePathLengthToNumber(int target_number, int starting_number)
-{
-    int current_number = starting_number;
-    int buttons_pressed = 0;
-    
-    while (current_number != target_number)
-    {
-        int delta = target_number - current_number;
-        
-        int chosen = 0;
-        if (delta > 50 || target_number == 728)
-        {
-            chosen = 100;
-        }
-        else if (target_number == 0)
-        {
-            chosen = -100;
-        }
-        else if (delta > 5)
-        {
-            chosen = 10;
-        }
-        else if (delta > 0)
-        {
-            chosen = 1;
-        }
-        else if (delta < -50)
-        {
-            chosen = -100;
-        }
-        else if (delta < -5)
-        {
-            chosen = -10;
-        }
-        else
-        {
-            chosen = -1;
-        }
-        if (chosen == 0)
-        {
-            printSilent("Internal error computing " + current_number + " to " + target_number);
-            break;
-        }
-        current_number += chosen;
-        if (current_number < 0) current_number = 0;
-        if (current_number > 728) current_number = 728;
-        buttons_pressed++;
-    }
-    return buttons_pressed;
-}
 
 //Returns true if done.
 boolean incrementTabConfiguration(int [int] configuration, int ignoring_index)
@@ -2853,7 +2909,6 @@ void handleBuffCommand(string command)
                 }
                 if (chosen_tab != -1)
                 {
-                    //abort("YOU WERE THE CHOSEN " + chosen_tab);
                     //press:
                     actionPressTab(chosen_tab + 1);
                     continue;
@@ -2946,7 +3001,7 @@ void handleBuffCommand(string command)
                     abort("Internal error: unable to compute a good target number.");
                     return;
                 }
-                printSilent("best_found_target_number = " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
+                printSilent("Best found target number: " + best_found_target_number + " unlocking " + best_found_tabs_at_final + " tabs of path length " + best_found_path_length + ".");
                 setTabsToNumber(best_found_target_number, true); //only press once, because if we discover the wrong button, maybe we'll find a new one...?
             }
             
@@ -2991,6 +3046,10 @@ void main(string command)
 		printSilent("You don't seem to own a briefcase.");
 		return;
 	}
+    if (!get_property("svnUpdateOnLogin").to_boolean())
+    {
+        printSilent("Consider enabling Preferences>SVN>Update installed SVN projects on login; this script is changing often.");
+    }
 	//readFileState(); //done already
 	
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
@@ -3090,7 +3149,7 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
-        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Solving the puzzles is not worthwhile at the moment, and may break the buff command.");
+        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Solving the puzzles is not worthwhile at the moment, and will break the buff command.");
         if (!yes)
             return;
 		lightSecondLight();
