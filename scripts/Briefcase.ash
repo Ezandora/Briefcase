@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.2";
+string __briefcase_version = "1.2.3";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -3019,6 +3019,11 @@ void lightLastLights()
         return;
     lightSecondLight();
     lightThirdLight();
+    if (__state.horizontal_light_states[2] != LIGHT_STATE_ON || __state.horizontal_light_states[3] != LIGHT_STATE_ON || __state.horizontal_light_states[1] != LIGHT_STATE_ON)
+    {
+        printSilent("Need the second and third lights solved first."):
+        return;
+    }
     //Make sure tabs are moving:
     //Discover moving tabs number:
     if (__file_state["lightrings target number"] == "")
