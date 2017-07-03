@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2";
+string __briefcase_version = "1.2.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -3023,6 +3023,7 @@ void lightLastLights()
         if (__file_state["lightrings target number"] == "")
         {
             abort("write more code to test lightrings");
+            //Hmm...
         }
     }
     if (__file_state["lightrings target number"] == "")
@@ -3034,14 +3035,19 @@ void lightLastLights()
     
     //Try to reach just above that:
     int target_lightrings_number = __file_state["lightrings target number"].to_int();
-    int starting_number_needed = target_lightrings_number + 20; //twenty is a guess; in reality it's... 1 + 7 + 4?
-    int breakout = 111;
+    int starting_number_needed = target_lightrings_number + 21; //twenty is a guess; in reality it's... 1 + 7 + 4?
     
     //Make sure we're moving:
     if (!testTabsAreMoving())
     {
-        abort("make moving yes");
+        setTabsToNumber(target_lightrings_number);
     }
+    if (!testTabsAreMoving())
+    {
+        printSilent("Unable to make tabs move, maybe try again tomorrow?");
+        return;
+    }
+    int breakout = 111;
     //We need to be target_lightrings_number + a bunch. Honestly, just press +100 until we're over that number, then refresh until we're down to the correct spot.
     while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
     {
@@ -3056,9 +3062,10 @@ void lightLastLights()
     //Charge antennae until we're in position:
 	actionSetHandleTo(false);
     breakout = 300;
+    printSilent("Turning crank down to starting position. This may take a bit.");
     while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) > target_lightrings_number + 4 && breakout > 0)
     {
-        breakout -=1;
+        breakout -= 1;
         actionTurnCrank();
     }
     if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) != target_lightrings_number + 4)
@@ -3074,25 +3081,6 @@ void lightLastLights()
     
 }
 
-
-//FIXME lights four-six.
-//Once it's spaded.
-//... if it's spaded?
-//(what if it's never spaded)
-
-
-void makeTabsMove()
-{
-	//FIXME implement this
-	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON)
-	{
-		lightThirdLight();
-		return;
-	}
-	abort("FIXME make tabs move");
-}
-
-
 void recalculateVarious()
 {
 	calculateTabs();
@@ -3103,6 +3091,7 @@ void recalculateVarious()
 
 if (__setting_output_help_before_main)
 	outputHelp();
+
 void main(string command)
 {
 	if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
@@ -3213,9 +3202,12 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
-        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Or maybe not.");
-        if (!yes)
-            return;
+        if (!can_interact())
+        {
+            boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Or maybe not.");
+            if (!yes)
+                return;
+        }
 		lightSecondLight();
 		lightThirdLight();
         lightLastLights();
