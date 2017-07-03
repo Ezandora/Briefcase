@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.1.5";
+string __briefcase_version = "1.2";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -373,7 +373,8 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 	if (state.buttons_unlocked)
 		things_unlocked.listAppend("buttons");
 	
-	description.listAppend("Unlocked: " + things_unlocked.listJoinComponents(", ", "and"));
+    if (things_unlocked.count() > 0)
+        description.listAppend("Unlocked: " + things_unlocked.listJoinComponents(", ", "and"));
 	if (state.handle_up)
 		description.listAppend("Handle: UP");
 	else
@@ -973,6 +974,20 @@ void actionCollectMartiniHose()
 		__file_state["_martini hose collected"] = 3;
 		writeFileState();
 	}
+}
+
+
+boolean testTabsAreMoving()
+{
+    if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+    {
+        int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
+        actionVisitBriefcase();
+        
+        if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
+            return true;
+    }
+    return false;
 }
 
 //Tasks:
@@ -1774,20 +1789,6 @@ int [int] discoverTabPermutation(boolean allow_actions)
     unlockButtons();
 	actionSetHandleTo(true);
 	int breakout = 111;
-	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && false) //it totally can do this now. maybe.
-	{
-		int [int] blank;
-		if (!allow_actions) return blank;
-		//Are the tabs moving?
-		int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
-		actionVisitBriefcase();
-		
-		if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
-		{
-			printSilent("We can't discover tab permutations with moving tabs, yet. Sorry. Reset the briefcase?");
-			return blank;
-		}
-	}
     boolean trying_negative = false;
 	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
 	{
@@ -2179,8 +2180,8 @@ void collectSplendidMartinis()
 		printSilent("Already collected from the hose today.");
 		return;
 	}
-	discoverButtonWithFunctionID(5); //100
 	unlockMartiniHose();
+	discoverButtonWithFunctionID(5); //100
     
     int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
     
@@ -2775,18 +2776,11 @@ void handleBuffCommand(string command)
         discoverTabPermutation(true);
 		actionSetHandleTo(true);
         
-        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
+        if (testTabsAreMoving())
         {
-            //Are the tabs moving?
-            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
-            actionVisitBriefcase();
-            
-            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
-            {
-                //This could theoreticaly be supported, but it would be complicated.
-                printSilent("Buff command disabled while tabs are moving. Try \"briefcase stop\".");
-                return;
-            }
+            //This could theoreticaly be supported, but it would be complicated.
+            printSilent("Buff command disabled while tabs are moving. Try \"briefcase stop\".");
+            return;
         }
         //For computing deltas (have we gained this buff already)
         int [effect] starting_effect_count;
@@ -3009,6 +3003,76 @@ void handleBuffCommand(string command)
 	}
 	
 }
+void lightLastLights()
+{
+    if (__state.horizontal_light_states[6] == LIGHT_STATE_ON)
+        return;
+    lightSecondLight();
+    lightThirdLight();
+    //Make sure tabs are moving:
+    //Discover moving tabs number:
+    if (__file_state["lightrings target number"] == "")
+    {
+        //Are tabs moving? No? Then we still have a problem.
+        int breakout = 400;
+        while (testTabsAreMoving() && __file_state["lightrings target number"] == "" && breakout > 0)
+        {
+            breakout -= 1;
+            calculatePossibleLightringsValues(false, false);
+        }
+        if (__file_state["lightrings target number"] == "")
+        {
+            abort("write more code to test lightrings");
+        }
+    }
+    if (__file_state["lightrings target number"] == "")
+    {
+        printSilent("Unable to discover lightrings target number, wait until tomorrow.");
+        return;
+    }
+    int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
+    
+    //Try to reach just above that:
+    int target_lightrings_number = __file_state["lightrings target number"].to_int();
+    int starting_number_needed = target_lightrings_number + 20; //twenty is a guess; in reality it's... 1 + 7 + 4?
+    int breakout = 111;
+    
+    //Make sure we're moving:
+    if (!testTabsAreMoving())
+    {
+        abort("make moving yes");
+    }
+    //We need to be target_lightrings_number + a bunch. Honestly, just press +100 until we're over that number, then refresh until we're down to the correct spot.
+    while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+    {
+        actionPressButton(discoverButtonWithFunctionID(5) + 1);
+        breakout -= 1;
+    }
+    if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed)
+    {
+        printSilent("Unable to reach starting spot, wait until tomorrow.");
+        return;
+    }
+    //Charge antennae until we're in position:
+	actionSetHandleTo(false);
+    breakout = 300;
+    while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) > target_lightrings_number + 4 && breakout > 0)
+    {
+        breakout -=1;
+        actionTurnCrank();
+    }
+    if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) != target_lightrings_number + 4)
+    {
+        printSilent("Internal error, unable to open, sorry.");
+        return;
+    }
+    //R-e-s-e-t:
+    actionManipulateHandle();
+    actionManipulateHandle();
+    actionManipulateHandle();
+    actionManipulateHandle();
+    
+}
 
 
 //FIXME lights four-six.
@@ -3149,11 +3213,12 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
-        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Solving the puzzles is not worthwhile at the moment, and will break the buff command.");
+        boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Or maybe not.");
         if (!yes)
             return;
 		lightSecondLight();
 		lightThirdLight();
+        lightLastLights();
 	}
 	if (command == "second" || command == "mastermind")
 	{
@@ -3201,15 +3266,7 @@ void main(string command)
 	}
     if (command == "stop")
     {
-        boolean tabs_are_moving = false;
-        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON)
-        {
-            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
-            actionVisitBriefcase();
-            
-            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
-                tabs_are_moving = true;
-        }
+        boolean tabs_are_moving = testTabsAreMoving();
         if (tabs_are_moving)
         {
             actionSetHandleTo(true);
@@ -3222,12 +3279,7 @@ void main(string command)
                 breakout -= 1;
                 actionPressButton(discoverButtonWithFunctionID(4, false, false) + 1);
             }
-            tabs_are_moving = false;
-            int [int] previous_tab_permutation = __state.tab_configuration.listCopy();
-            actionVisitBriefcase();
-            
-            if (!configurationsAreEqual(previous_tab_permutation, __state.tab_configuration))
-                tabs_are_moving = true;
+            tabs_are_moving = testTabsAreMoving();
             if (tabs_are_moving)
                 printSilent("Unable to stop tabs.");
             else
