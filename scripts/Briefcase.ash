@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.1";
+string __briefcase_version = "1.2.2";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -286,6 +286,7 @@ Record BriefcaseState
 	boolean martini_hose_unlocked;
 	boolean antennae_unlocked;
 	boolean buttons_unlocked;
+    boolean case_opening_unlocked; //strictly speaking, not needed, since sixth light
 	
 	boolean handle_up;
 	
@@ -372,6 +373,9 @@ string [int] BriefcaseStateDescription(BriefcaseState state)
 		things_unlocked.listAppend("antennae");
 	if (state.buttons_unlocked)
 		things_unlocked.listAppend("buttons");
+    if (state.case_opening_unlocked)
+		things_unlocked.listAppend("opening case");
+    
 	
     if (things_unlocked.count() > 0)
         description.listAppend("Unlocked: " + things_unlocked.listJoinComponents(", ", "and"));
@@ -505,6 +509,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	if (lightrings_matches.count() > 0)
 		state.lightrings_number = lightrings_matches[0][1].to_int();
 	state.buttons_unlocked = page_text.contains_text("otherimages/kgb/button.gif");
+    state.case_opening_unlocked = page_text.contains_text("place.php?whichplace=kgb&action=kgb_daily");
 	
 	
 	
@@ -1725,16 +1730,16 @@ void outputHelp()
     printSilent("<strong>buff</strong> or <strong>b</strong> - obtain tab buffs.");
 	printSilent("<strong>status</strong> - shows current briefcase status");
 	printSilent("<strong>help</strong>");
+	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles. <strong>You may want the \"unlock\" command instead.</strong>");
 	printSilent("");
 	printSilent("<strong>drawers</strong> or <strong>left</strong> or <strong>right</strong> - unlocks all/left/right drawers");
 	printSilent("<strong>hose</strong> - unlocks martini hose");
-	printSilent("<strong>drink</strong> - acquires three splendid martinis");
+	printSilent("<strong>drink</strong> or <strong>collect</strong> - acquires three splendid martinis and other dailies");
 	printSilent("");
+    printSilent("Unimportant commands:");
 	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
-	printSilent("<strong>second</strong> - lights #2, solves mastermind puzzle");
-	printSilent("<strong>third</strong> - lights #3, solves tab puzzle");
+	printSilent("<strong>second</strong> or <strong>third</strong> - lights respective light");
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
-	printSilent("<strong>solve</strong> - unlocks everything we know how to unlock, also solves puzzles. <strong>You probably want the \"unlock\" command instead.</strong>");
 	printSilent("<strong>reset</strong> - resets the briefcase");
     printSilent("<strong>stop</strong> - stops moving tabs");
 }
@@ -2125,9 +2130,9 @@ int [int] calculatePossibleLightringsValues(boolean allow_actions, boolean only_
 	return possible_lightrings_answers_final;
 }
 
-void lightThirdLight()
+void lightThirdLight(boolean try_to_reach_moving_tabs_regardless)
 {
-	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON) return;
+	if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && !try_to_reach_moving_tabs_regardless) return;
 	printSilent("Solving third light...");
 	discoverButtonWithFunctionID(5); //100
 	discoverButtonWithFunctionID(3); //10
@@ -2139,7 +2144,7 @@ void lightThirdLight()
 		discoverButtonWithFunctionID(function_id);
 	
 	int breakout = 111;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[3] != LIGHT_STATE_ON && breakout > 0)
+	while (!__file_state["_out of clicks for the day"].to_boolean() && (__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && breakout > 0)
 	{
 		breakout -= 1;
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, true);
@@ -2167,10 +2172,15 @@ void lightThirdLight()
         }
 		setTabsToNumber(picked_number, true);
 	}
-	if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_out of clicks for the day"].to_boolean())
+	if ((__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && __file_state["_out of clicks for the day"].to_boolean())
 	{
 		printSilent("Can't solve yet, out of clicks for the day.");
 	}
+}
+
+void lightThirdLight()
+{
+    lightThirdLight(false);
 }
 void collectSplendidMartinis()
 {
@@ -3022,8 +3032,8 @@ void lightLastLights()
         }
         if (__file_state["lightrings target number"] == "")
         {
-            abort("write more code to test lightrings");
-            //Hmm...
+            printSilent("Running experimental untested code.");
+            lightThirdLight(true);
         }
     }
     if (__file_state["lightrings target number"] == "")
@@ -3220,7 +3230,7 @@ void main(string command)
 	{
 		lightThirdLight();
 	}
-	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks")
+	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks" || command == "collect")
 	{
 		//Increment tabs to 222222, collect splendid martinis:
 		collectSplendidMartinis();
@@ -3326,6 +3336,13 @@ void main(string command)
 	{
 		actionCollectRightDrawer();
 	}
+    if (__state.case_opening_unlocked && !__file_state["_case opened"].to_boolean())
+    {
+        printSilent("Opening case...", "gray");
+        updateState(visit_url("place.php?whichplace=kgb&action=kgb_daily"));
+        __file_state["_case opened"] = true;
+        writeFileState();
+    }
 	print("Done.");
 }
 
