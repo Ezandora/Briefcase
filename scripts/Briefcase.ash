@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.4";
+string __briefcase_version = "1.2.5";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1310,7 +1310,7 @@ void lightSecondLight()
 		{
 			//solve right:
 			valid_states_using = valid_states_right;
-			states_already_tested = states_already_tested_left;
+			states_already_tested = states_already_tested_right;
 		}
 		int number_of_valid_states = 0;
 		int [int] picked_choice;
@@ -1330,7 +1330,7 @@ void lightSecondLight()
 				number_of_distinct_values++;
 			if (dials[2] != dials[1] && dials[2] != dials[0])
 				number_of_distinct_values++;
-			if (number_of_distinct_values > picked_choice_distinct_values)
+			if (number_of_distinct_values > picked_choice_distinct_values || picked_choice.count() == 0)
 			{
 				picked_choice = dials;
 				picked_choice_distinct_values = number_of_distinct_values;
@@ -1340,7 +1340,7 @@ void lightSecondLight()
 		}
 		if (picked_choice.count() == 0)
 		{
-			printSilent("Unable to solve mastermind, out of choices.");
+			printSilent("Unable to solve mastermind, out of choices. " + number_of_valid_states + " valid states.");
 			return;
 		}
 		//Set dials to this choice, press the correct actuator:
@@ -3240,6 +3240,14 @@ void main(string command)
 		//Increment tabs to 222222, collect splendid martinis:
 		collectSplendidMartinis();
 	}
+    if (command == "basic")
+    {
+        
+    }
+    if (command == "improved")
+    {
+        
+    }
 	if (command == "identify")
 	{
 		calculateTabs();
