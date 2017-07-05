@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.5";
+string __briefcase_version = "1.2.6";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -294,6 +294,9 @@ Record BriefcaseState
 	int lightrings_number; //0 for none
 	
 	boolean [string] last_action_results;
+    
+    boolean know_last_was_moving;
+    boolean last_action_was_moving;
 };
 
 
@@ -588,6 +591,8 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
 			{
 				tabs_are_moving = true;
+                state.know_last_was_moving = true;
+                state.last_action_was_moving = true;
 			}
 			if (current_tab_configuration[0] == 0 && current_tab_configuration[1] == 0 && current_tab_configuration[2] == 0 && current_tab_configuration[3] == 0 && current_tab_configuration[4] == 0 && current_tab_configuration[5] == 0) //there is no way to know if the tabs were moving; just don't write this one?
 			{
@@ -625,6 +630,8 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
 			{
 				tabs_are_moving = true;
+                state.know_last_was_moving = true;
+                state.last_action_was_moving = true;
 			}
 		}
 		if (!tabs_are_moving)
@@ -2182,6 +2189,37 @@ void lightThirdLight()
 {
     lightThirdLight(false);
 }
+void useMovingTabsToReachValidNumbers(boolean [int] using_valid_numbers, int [int] tab_permutation)
+{
+    //!(using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation))
+    int starting_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+    //Tabs may be moving, visit briefcase a bit to change to valid state?
+    int smallest_delta = -1;
+    foreach valid_number in using_valid_numbers
+    {
+        if (valid_number >= starting_number) continue;
+        int delta = starting_number - valid_number;
+        if (smallest_delta == -1 || delta < smallest_delta)
+            smallest_delta = delta;
+    }
+    
+    if (smallest_delta < 55 && smallest_delta > 0)
+    {
+        //printSilent("smallest_delta = " + smallest_delta);
+        for i from 1 to smallest_delta
+        {
+            if (using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation))
+                break;
+            int before = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+            actionVisitBriefcase();
+            int now = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
+            //printSilent("before = " + before + " now = " + now);
+            if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) == starting_number) //not moving
+                break;
+        }
+    }
+}
+
 void collectSplendidMartinis()
 {
 	//FIXME don't do this if we don't have enough clicks for the day to finish?
@@ -2196,44 +2234,42 @@ void collectSplendidMartinis()
     int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
     
     boolean [int] valid_splendid_numbers = $ints[485, 647, 701, 719, 725, 727, 728];
+    boolean [int] valid_splendid_numbers_moving;
+    foreach value in valid_splendid_numbers
+    {
+        if (value < 728)
+            valid_splendid_numbers_moving[value + 1] = true;
+    }
+    
 	for i from 1 to 3
 	{
 		if (__file_state["_martini hose collected"].to_int() >= 3)
 			break;
         
-        if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && !(valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+        boolean [int] using_valid_numbers = valid_splendid_numbers;
+        
+        //if (__state.horizontal_light_states[3] == LIGHT_STATE_ON && !(using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+        if (testTabsAreMoving())
         {
-            int starting_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
-            //Tabs may be moving, visit briefcase a bit to change to valid state?
-            int smallest_delta = -1;
-            foreach valid_number in valid_splendid_numbers
+            using_valid_numbers = valid_splendid_numbers_moving;
+            useMovingTabsToReachValidNumbers(using_valid_numbers, tab_permutation);
+        }
+        if (!(using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+        {
+            boolean [int] using_valid_numbers_extra;
+            foreach v in using_valid_numbers
+                using_valid_numbers_extra[v] = true;
+            using_valid_numbers_extra[727] = true; //looper stop looping
+            setTabsToNumber(728, false, using_valid_numbers_extra);
+            if ((__state.know_last_was_moving && __state.last_action_was_moving) || (!__state.know_last_was_moving && testTabsAreMoving()))
             {
-                if (valid_number >= starting_number) continue;
-                int delta = starting_number - valid_number;
-                if (smallest_delta == -1 || delta < smallest_delta)
-                    smallest_delta = delta;
-            }
-            
-            if (smallest_delta < 55 && smallest_delta > 0)
-            {
-                //printSilent("smallest_delta = " + smallest_delta);
-                for i from 1 to smallest_delta
-                {
-                    if (valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation))
-                        break;
-                    int before = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
-                    actionVisitBriefcase();
-                    int now = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
-                    //printSilent("before = " + before + " now = " + now);
-                    if (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) == starting_number) //not moving
-                        break;
-                }
+                using_valid_numbers = valid_splendid_numbers_moving;
+                useMovingTabsToReachValidNumbers(using_valid_numbers, tab_permutation);
             }
         }
-        if (!(valid_splendid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
-            setTabsToNumber(728, false, valid_splendid_numbers);
+        //Tabs can be moving here when they weren't before.
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation);
-		if (valid_splendid_numbers contains current_number)
+		if (using_valid_numbers contains current_number)
 		{
 			actionCollectMartiniHose();
 		}
@@ -2242,6 +2278,7 @@ void collectSplendidMartinis()
 			printSilent("Can't collect splendid martinis. Maybe out of clicks?", "red");
 			return;
 		}
+        //abort("well?");
 	}
 }
 
