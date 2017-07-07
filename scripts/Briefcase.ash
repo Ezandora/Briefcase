@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.6";
+string __briefcase_version = "1.2.7";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1560,7 +1560,18 @@ boolean [int][int] calculateTabs()
 			state_transition.after_tab_configuration.listAppend(v.to_int());
 		
 		if (entry.count() == 4)
+        {
 			state_transition.tabs_were_moving = entry[3].to_boolean();
+            if (state_transition.tabs_were_moving && state_transitions.count() > 0)
+            {
+                TabStateTransition last_state_transition = state_transitions[state_transitions.count() - 1];
+                if (configurationsAreEqual(state_transition.before_tab_configuration, last_state_transition.after_tab_configuration) && !last_state_transition.tabs_were_moving)
+                {
+                    //They (probably) hit the target number - which is a special case, so it's not moving yet. This is a hack, but, umm... kind of one that's impossible to avoid?
+                    state_transition.tabs_were_moving = false;
+                }
+            }
+        }
 		
 		state_transitions[state_transitions.count()] = state_transition;
 	}
