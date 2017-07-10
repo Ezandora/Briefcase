@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.7";
+string __briefcase_version = "1.2.8";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1860,6 +1860,7 @@ int [int] discoverTabPermutation(boolean allow_actions)
 		//abort("next_chosen_button = " + next_chosen_button);
 		if (!allow_actions)
 			break;
+        actionSetHandleTo(true);
 		actionPressButton(next_chosen_button + 1);
 		//break;
 		//abort("write me " + next_chosen_button);
@@ -3111,6 +3112,7 @@ void lightLastLights()
         return;
     }
     int breakout = 111;
+	actionSetHandleTo(true);
     //We need to be target_lightrings_number + a bunch. Honestly, just press +100 until we're over that number, then refresh until we're down to the correct spot.
     while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
     {
