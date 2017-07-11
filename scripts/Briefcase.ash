@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.8";
+string __briefcase_version = "1.2.9";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2697,9 +2697,10 @@ void pressTab(int tab_id, int tab_length)
 {
     //printSilent("Activating buff of tab " + tab_id + " of length " + tab_length);
     //We have to reach this tab state using the least clicks, then press the tab:
-    
-    while (__state.tab_configuration[tab_id] != tab_length)
+    int breakout = 111;
+    while (__state.tab_configuration[tab_id] != tab_length && breakout > 0 && !__file_state["_out of clicks for the day"].to_boolean())
     {
+        breakout -= 1;
         boolean [int][int] tabs_known;
         int best_found_target_number = computeBestTargetNumberForTab(tab_id, tab_length, tabs_known);
         setTabsToNumber(best_found_target_number, true); //only press once, because if we discover the wrong button, maybe we'll find a new one...?
@@ -2913,7 +2914,6 @@ void handleBuffCommand(string command)
                     pressTab(t.id, t.length);
                 }
             }
-            
             //FIXME this part, where it's already identified
             //FIXME also don't re-do this if we already identified it earlier in another part of the loop
             int breakout = 25;
