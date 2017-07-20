@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "1.2.9";
+string __briefcase_version = "1.2.10";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -13,6 +13,1758 @@ boolean __setting_confirm_actions_that_will_use_a_click = false;
 boolean __setting_output_help_before_main = false;
 
 boolean __setting_do_not_actually_use_clicks = false; //FIXME only partially implemented, and only use with confirm_actions
+
+boolean __setting_have_dark_background = true;
+
+string __setting_background_colour = "#E1E3E7";
+string __setting_light_colour = "#87888A";
+
+
+//Allows error checking. The intention behind this design is Errors are passed in to a method. The method then sets the error if anything went wrong.
+record Error
+{
+	boolean was_error;
+	string explanation;
+};
+
+Error ErrorMake(boolean was_error, string explanation)
+{
+	Error err;
+	err.was_error = was_error;
+	err.explanation = explanation;
+	return err;
+}
+
+Error ErrorMake()
+{
+	return ErrorMake(false, "");
+}
+
+void ErrorSet(Error err, string explanation)
+{
+	err.was_error = true;
+	err.explanation = explanation;
+}
+
+void ErrorSet(Error err)
+{
+	ErrorSet(err, "Unknown");
+}
+
+//Coordinate system is upper-left origin.
+
+int INT32_MAX = 2147483647;
+
+
+
+float clampf(float v, float min_value, float max_value)
+{
+	if (v > max_value)
+		return max_value;
+	if (v < min_value)
+		return min_value;
+	return v;
+}
+
+float clampNormalf(float v)
+{
+	return clampf(v, 0.0, 1.0);
+}
+
+int clampi(int v, int min_value, int max_value)
+{
+	if (v > max_value)
+		return max_value;
+	if (v < min_value)
+		return min_value;
+	return v;
+}
+
+float clampNormali(int v)
+{
+	return clampi(v, 0, 1);
+}
+
+//random() will halt the script if range is <= 1, which can happen when picking a random object out of a variable-sized list.
+//There's also a hidden bug where values above 2147483647 will be treated as zero.
+int random_safe(int range)
+{
+	if (range < 2 || range > 2147483647)
+		return 0;
+	return random(range);
+}
+
+float randomf()
+{
+    return random_safe(2147483647).to_float() / 2147483647.0;
+}
+
+//to_int will print a warning, but not halt, if you give it a non-int value.
+//This function prevents the warning message.
+//err is set if value is not an integer.
+int to_int_silent(string value, Error err)
+{
+    //to_int() supports floating-point values. is_integer() will return false.
+    //So manually strip out everything past the dot.
+    //We probably should just ask for to_int() to be silent in the first place.
+    int dot_position = value.index_of(".");
+    if (dot_position != -1 && dot_position > 0) //two separate concepts - is it valid, and is it past the first position. I like testing against both, for safety against future changes.
+    {
+        value = value.substring(0, dot_position);
+    }
+    
+	if (is_integer(value))
+        return to_int(value);
+    ErrorSet(err, "Unknown integer \"" + value + "\".");
+	return 0;
+}
+
+int to_int_silent(string value)
+{
+	return to_int_silent(value, ErrorMake());
+}
+
+//Silly conversions in case we chose the wrong function, removing the need for a int -> string -> int hit.
+int to_int_silent(int value)
+{
+    return value;
+}
+
+int to_int_silent(float value)
+{
+    return value;
+}
+
+
+float sqrt(float v, Error err)
+{
+    if (v < 0.0)
+    {
+        ErrorSet(err, "Cannot take square root of value " + v + " less than 0.0");
+        return -1.0; //mathematically incorrect, but prevents halting. should return NaN
+    }
+	return square_root(v);
+}
+
+float sqrt(float v)
+{
+    return sqrt(v, ErrorMake());
+}
+
+float fabs(float v)
+{
+    if (v < 0.0)
+        return -v;
+    return v;
+}
+
+int abs(int v)
+{
+    if (v < 0)
+        return -v;
+    return v;
+}
+
+int ceiling(float v)
+{
+	return ceil(v);
+}
+
+int pow2i(int v)
+{
+	return v * v;
+}
+
+float pow2f(float v)
+{
+	return v * v;
+}
+
+//x^p
+float powf(float x, float p)
+{
+    return x ** p;
+}
+
+//x^p
+int powi(int x, int p)
+{
+    return x ** p;
+}
+
+record Vec2i
+{
+	int x; //or width
+	int y; //or height
+};
+
+Vec2i Vec2iMake(int x, int y)
+{
+	Vec2i result;
+	result.x = x;
+	result.y = y;
+	
+	return result;
+}
+
+Vec2i Vec2iCopy(Vec2i v)
+{
+    return Vec2iMake(v.x, v.y);
+}
+
+Vec2i Vec2iZero()
+{
+	return Vec2iMake(0,0);
+}
+
+boolean Vec2iValueInRange(Vec2i v, int value)
+{
+    if (value >= v.x && value <= v.y)
+        return true;
+    return false;
+}
+
+record Vec2f
+{
+	float x; //or width
+	float y; //or height
+};
+
+Vec2f Vec2fMake(float x, float y)
+{
+	Vec2f result;
+	result.x = x;
+	result.y = y;
+	
+	return result;
+}
+
+Vec2f Vec2fCopy(Vec2f v)
+{
+    return Vec2fMake(v.x, v.y);
+}
+
+Vec2f Vec2fZero()
+{
+	return Vec2fMake(0.0, 0.0);
+}
+
+boolean Vec2fValueInRange(Vec2f v, float value)
+{
+    if (value >= v.x && value <= v.y)
+        return true;
+    return false;
+}
+
+
+record Rect
+{
+	Vec2i min_coordinate;
+	Vec2i max_coordinate;
+};
+
+Rect RectMake(Vec2i min_coordinate, Vec2i max_coordinate)
+{
+	Rect result;
+	result.min_coordinate = Vec2iCopy(min_coordinate);
+	result.max_coordinate = Vec2iCopy(max_coordinate);
+	return result;
+}
+
+Rect RectCopy(Rect r)
+{
+    return RectMake(r.min_coordinate, r.max_coordinate);
+}
+
+Rect RectMake(int min_x, int min_y, int max_x, int max_y)
+{
+	return RectMake(Vec2iMake(min_x, min_y), Vec2iMake(max_x, max_y));
+}
+
+Rect RectZero()
+{
+	return RectMake(Vec2iZero(), Vec2iZero());
+}
+
+
+void listAppend(Rect [int] list, Rect entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+//Allows for fractional digits, not just whole numbers. Useful for preventing "+233.333333333333333% item"-type output.
+//Outputs 3.0, 3.1, 3.14, etc.
+float round(float v, int additional_fractional_digits)
+{
+	if (additional_fractional_digits < 1)
+		return v.round().to_float();
+	float multiplier = powf(10.0, additional_fractional_digits);
+	return to_float(round(v * multiplier)) / multiplier;
+}
+
+//Similar to round() addition above, but also converts whole float numbers into integers for output
+string roundForOutput(float v, int additional_fractional_digits)
+{
+	v = round(v, additional_fractional_digits);
+	int vi = v.to_int();
+	if (vi.to_float() == v)
+		return vi.to_string();
+	else
+		return v.to_string();
+}
+
+
+float floor(float v, int additional_fractional_digits)
+{
+	if (additional_fractional_digits < 1)
+		return v.floor().to_float();
+	float multiplier = powf(10.0, additional_fractional_digits);
+	return to_float(floor(v * multiplier)) / multiplier;
+}
+
+string floorForOutput(float v, int additional_fractional_digits)
+{
+	v = floor(v, additional_fractional_digits);
+	int vi = v.to_int();
+	if (vi.to_float() == v)
+		return vi.to_string();
+	else
+		return v.to_string();
+}
+
+
+float TriangularDistributionCalculateCDF(float x, float min, float max, float centre)
+{
+    //piecewise function:
+    if (x < min) return 0.0;
+    else if (x > max) return 1.0;
+    else if (x >= min && x <= centre)
+    {
+        float divisor = (max - min) * (centre - min);
+        if (divisor == 0.0)
+            return 0.0;
+        
+        return pow2f(x - min) / divisor;
+    }
+    else if (x <= max && x > centre)
+    {
+        float divisor = (max - min) * (max - centre);
+        if (divisor == 0.0)
+            return 0.0;
+        
+            
+        return 1.0 - pow2f(max - x) / divisor;
+    }
+    else //probably only happens with weird floating point values, assume chance of zero:
+        return 0.0;
+}
+
+//assume a centre equidistant from min and max
+float TriangularDistributionCalculateCDF(float x, float min, float max)
+{
+    return TriangularDistributionCalculateCDF(x, min, max, (min + max) * 0.5);
+}
+
+float averagef(float a, float b)
+{
+    return (a + b) * 0.5;
+}
+
+boolean numberIsInRangeInclusive(int v, int min, int max)
+{
+    if (v < min) return false;
+    if (v > max) return false;
+    return true;
+}
+//WARNING: All listAppend functions are flawed.
+//Specifically, there's a possibility of a hole that causes order to be incorrect.
+//But, the only way to fix that is to traverse the list to determine the maximum key.
+//That would take forever...
+
+string listLastObject(string [int] list)
+{
+    if (list.count() == 0)
+        return "";
+    return list[list.count() - 1];
+}
+
+void listAppend(string [int] list, string entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppendList(string [int] list, string [int] entries)
+{
+	foreach key in entries
+		list.listAppend(entries[key]);
+}
+
+string [int] listUnion(string [int] list, string [int] list2)
+{
+    string [int] result;
+    foreach key, s in list
+        result.listAppend(s);
+    foreach key, s in list2
+        result.listAppend(s);
+    return result;
+}
+
+void listAppendList(boolean [item] destination, boolean [item] source)
+{
+    foreach it, value in source
+        destination[it] = value;
+}
+
+void listAppendList(boolean [string] destination, boolean [string] source)
+{
+    foreach key, value in source
+        destination[key] = value;
+}
+
+void listAppendList(boolean [skill] destination, boolean [skill] source)
+{
+    foreach key, value in source
+        destination[key] = value;
+}
+
+void listAppend(item [int] list, item entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppendList(item [int] list, item [int] entries)
+{
+	foreach key in entries
+        list.listAppend(entries[key]);
+}
+
+
+
+void listAppend(int [int] list, int entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(float [int] list, float entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(location [int] list, location entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(element [int] list, element entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppendList(location [int] list, location [int] entries)
+{
+	foreach key in entries
+        list.listAppend(entries[key]);
+}
+
+void listAppend(effect [int] list, effect entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(skill [int] list, skill entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(familiar [int] list, familiar entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(monster [int] list, monster entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(phylum [int] list, phylum entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(buffer [int] list, buffer entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(slot [int] list, slot entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(thrall [int] list, thrall entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+
+
+
+
+void listAppend(string [int][int] list, string [int] entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(skill [int][int] list, skill [int] entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(familiar [int][int] list, familiar [int] entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(int [int][int] list, int [int] entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(item [int][int] list, item [int] entry)
+{
+	int position = list.count();
+	while (list contains position)
+		position += 1;
+	list[position] = entry;
+}
+
+void listAppend(skill [int] list, boolean [skill] entry)
+{
+    foreach v in entry
+        list.listAppend(v);
+}
+
+void listAppend(item [int] list, boolean [item] entry)
+{
+    foreach v in entry
+        list.listAppend(v);
+}
+
+void listPrepend(string [int] list, string entry)
+{
+	int position = 0;
+	while (list contains position)
+		position -= 1;
+	list[position] = entry;
+}
+
+void listPrepend(skill [int] list, skill entry)
+{
+	int position = 0;
+	while (list contains position)
+		position -= 1;
+	list[position] = entry;
+}
+
+void listAppendList(skill [int] list, skill [int] entries)
+{
+	foreach key in entries
+        list.listAppend(entries[key]);
+}
+
+void listPrepend(location [int] list, location entry)
+{
+	int position = 0;
+	while (list contains position)
+		position -= 1;
+	list[position] = entry;
+}
+
+
+void listClear(string [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+void listClear(int [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+void listClear(item [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+void listClear(location [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+void listClear(monster [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+void listClear(skill [int] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+
+void listClear(boolean [string] list)
+{
+	foreach i in list
+	{
+		remove list[i];
+	}
+}
+
+
+string [int] listMakeBlankString()
+{
+	string [int] result;
+	return result;
+}
+
+item [int] listMakeBlankItem()
+{
+	item [int] result;
+	return result;
+}
+
+skill [int] listMakeBlankSkill()
+{
+	skill [int] result;
+	return result;
+}
+
+location [int] listMakeBlankLocation()
+{
+	location [int] result;
+	return result;
+}
+
+monster [int] listMakeBlankMonster()
+{
+	monster [int] result;
+	return result;
+}
+
+familiar [int] listMakeBlankFamiliar()
+{
+	familiar [int] result;
+	return result;
+}
+
+
+
+
+string [int] listMake(string e1)
+{
+	string [int] result;
+	result.listAppend(e1);
+	return result;
+}
+
+string [int] listMake(string e1, string e2)
+{
+	string [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	return result;
+}
+
+string [int] listMake(string e1, string e2, string e3)
+{
+	string [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	return result;
+}
+
+string [int] listMake(string e1, string e2, string e3, string e4)
+{
+	string [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	return result;
+}
+
+string [int] listMake(string e1, string e2, string e3, string e4, string e5)
+{
+	string [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	return result;
+}
+
+string [int] listMake(string e1, string e2, string e3, string e4, string e5, string e6)
+{
+	string [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	result.listAppend(e6);
+	return result;
+}
+
+int [int] listMake(int e1)
+{
+	int [int] result;
+	result.listAppend(e1);
+	return result;
+}
+
+int [int] listMake(int e1, int e2)
+{
+	int [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	return result;
+}
+
+int [int] listMake(int e1, int e2, int e3)
+{
+	int [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	return result;
+}
+
+int [int] listMake(int e1, int e2, int e3, int e4)
+{
+	int [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	return result;
+}
+
+int [int] listMake(int e1, int e2, int e3, int e4, int e5)
+{
+	int [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	return result;
+}
+
+item [int] listMake(item e1)
+{
+	item [int] result;
+	result.listAppend(e1);
+	return result;
+}
+
+item [int] listMake(item e1, item e2)
+{
+	item [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	return result;
+}
+
+item [int] listMake(item e1, item e2, item e3)
+{
+	item [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	return result;
+}
+
+item [int] listMake(item e1, item e2, item e3, item e4)
+{
+	item [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	return result;
+}
+
+item [int] listMake(item e1, item e2, item e3, item e4, item e5)
+{
+	item [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	return result;
+}
+
+skill [int] listMake(skill e1)
+{
+	skill [int] result;
+	result.listAppend(e1);
+	return result;
+}
+
+skill [int] listMake(skill e1, skill e2)
+{
+	skill [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	return result;
+}
+
+skill [int] listMake(skill e1, skill e2, skill e3)
+{
+	skill [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	return result;
+}
+
+skill [int] listMake(skill e1, skill e2, skill e3, skill e4)
+{
+	skill [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	return result;
+}
+
+skill [int] listMake(skill e1, skill e2, skill e3, skill e4, skill e5)
+{
+	skill [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	return result;
+}
+
+string listJoinComponents(string [int] list, string joining_string, string and_string)
+{
+	buffer result;
+	boolean first = true;
+	int number_seen = 0;
+	foreach i, value in list
+	{
+		if (first)
+		{
+			result.append(value);
+			first = false;
+		}
+		else
+		{
+			if (!(list.count() == 2 && and_string != ""))
+				result.append(joining_string);
+			if (and_string != "" && number_seen == list.count() - 1)
+			{
+				result.append(" ");
+				result.append(and_string);
+				result.append(" ");
+			}
+			result.append(value);
+		}
+		number_seen = number_seen + 1;
+	}
+	return result.to_string();
+}
+
+string listJoinComponents(string [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+
+string listJoinComponents(item [int] list, string joining_string, string and_string)
+{
+	//lazy:
+	//convert items to strings, join that
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(item [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+string listJoinComponents(monster [int] list, string joining_string, string and_string)
+{
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+string listJoinComponents(monster [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+string listJoinComponents(effect [int] list, string joining_string, string and_string)
+{
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(effect [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+
+string listJoinComponents(familiar [int] list, string joining_string, string and_string)
+{
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(familiar [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+
+
+string listJoinComponents(location [int] list, string joining_string, string and_string)
+{
+	//lazy:
+	//convert locations to strings, join that
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(location [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+string listJoinComponents(phylum [int] list, string joining_string, string and_string)
+{
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(phylum [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+
+
+string listJoinComponents(skill [int] list, string joining_string, string and_string)
+{
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(skill [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+string listJoinComponents(int [int] list, string joining_string, string and_string)
+{
+	//lazy:
+	//convert ints to strings, join that
+	string [int] list_string;
+	foreach key in list
+		list_string.listAppend(list[key].to_string());
+	return listJoinComponents(list_string, joining_string, and_string);
+}
+
+string listJoinComponents(int [int] list, string joining_string)
+{
+	return listJoinComponents(list, joining_string, "");
+}
+
+
+void listRemoveKeys(string [int] list, int [int] keys_to_remove)
+{
+	foreach i in keys_to_remove
+	{
+		int key = keys_to_remove[i];
+		if (!(list contains key))
+			continue;
+		remove list[key];
+	}
+}
+
+int listSum(int [int] list)
+{
+    int v = 0;
+    foreach key in list
+    {
+        v += list[key];
+    }
+    return v;
+}
+
+
+string [int] listCopy(string [int] l)
+{
+    string [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+int [int] listCopy(int [int] l)
+{
+    int [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+monster [int] listCopy(monster [int] l)
+{
+    monster [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+element [int] listCopy(element [int] l)
+{
+    element [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+skill [int] listCopy(skill [int] l)
+{
+    skill [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+boolean [monster] listCopy(boolean [monster] l)
+{
+    boolean [monster] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+//Strict, in this case, means the keys start at 0, and go up by one per entry. This allows easy consistent access
+boolean listKeysMeetStrictRequirements(string [int] list)
+{
+    int expected_value = 0;
+    foreach key in list
+    {
+        if (key != expected_value)
+            return false;
+        expected_value += 1;
+    }
+    return true;
+}
+string [int] listCopyStrictRequirements(string [int] list)
+{
+    string [int] result;
+    foreach key in list
+        result.listAppend(list[key]);
+    return result;
+}
+
+string [string] mapMake()
+{
+	string [string] result;
+	return result;
+}
+
+string [string] mapMake(string key1, string value1)
+{
+	string [string] result;
+	result[key1] = value1;
+	return result;
+}
+
+string [string] mapMake(string key1, string value1, string key2, string value2)
+{
+	string [string] result;
+	result[key1] = value1;
+	result[key2] = value2;
+	return result;
+}
+
+string [string] mapMake(string key1, string value1, string key2, string value2, string key3, string value3)
+{
+	string [string] result;
+	result[key1] = value1;
+	result[key2] = value2;
+	result[key3] = value3;
+	return result;
+}
+
+string [string] mapMake(string key1, string value1, string key2, string value2, string key3, string value3, string key4, string value4)
+{
+	string [string] result;
+	result[key1] = value1;
+	result[key2] = value2;
+	result[key3] = value3;
+	result[key4] = value4;
+	return result;
+}
+
+string [string] mapMake(string key1, string value1, string key2, string value2, string key3, string value3, string key4, string value4, string key5, string value5)
+{
+	string [string] result;
+	result[key1] = value1;
+	result[key2] = value2;
+	result[key3] = value3;
+	result[key4] = value4;
+	result[key5] = value5;
+	return result;
+}
+
+string [string] mapCopy(string [string] map)
+{
+    string [string] result;
+    foreach key in map
+        result[key] = map[key];
+    return result;
+}
+
+boolean [string] listInvert(string [int] list)
+{
+	boolean [string] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+
+boolean [int] listInvert(int [int] list)
+{
+	boolean [int] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+boolean [location] listInvert(location [int] list)
+{
+	boolean [location] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+boolean [item] listInvert(item [int] list)
+{
+	boolean [item] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+boolean [monster] listInvert(monster [int] list)
+{
+	boolean [monster] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+boolean [familiar] listInvert(familiar [int] list)
+{
+	boolean [familiar] result;
+	foreach key in list
+	{
+		result[list[key]] = true;
+	}
+	return result;
+}
+
+int [int] listConvertToInt(string [int] list)
+{
+	int [int] result;
+	foreach key in list
+		result[key] = list[key].to_int();
+	return result;
+}
+
+item [int] listConvertToItem(string [int] list)
+{
+	item [int] result;
+	foreach key in list
+		result[key] = list[key].to_item();
+	return result;
+}
+
+string listFirstObject(string [int] list)
+{
+    foreach key in list
+        return list[key];
+    return "";
+}
+
+//(I'm assuming maps have a consistent enumeration order, which may not be the case)
+int listKeyForIndex(string [int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+int listKeyForIndex(location [int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+int listKeyForIndex(familiar [int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+int listKeyForIndex(item [int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+int listKeyForIndex(monster [int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+int llistKeyForIndex(string [int][int] list, int index)
+{
+	int i = 0;
+	foreach key in list
+	{
+		if (i == index)
+			return key;
+		i += 1;
+	}
+	return -1;
+}
+
+string listGetRandomObject(string [int] list)
+{
+    if (list.count() == 0)
+        return "";
+    if (list.count() == 1)
+    	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+item listGetRandomObject(item [int] list)
+{
+    if (list.count() == 0)
+        return $item[none];
+    if (list.count() == 1)
+    	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+location listGetRandomObject(location [int] list)
+{
+    if (list.count() == 0)
+        return $location[none];
+    if (list.count() == 1)
+    	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+familiar listGetRandomObject(familiar [int] list)
+{
+    if (list.count() == 0)
+        return $familiar[none];
+    if (list.count() == 1)
+    	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+monster listGetRandomObject(monster [int] list)
+{
+    if (list.count() == 0)
+        return $monster[none];
+    if (list.count() == 1)
+    	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+
+boolean listContainsValue(monster [int] list, monster vo)
+{
+    foreach key, v2 in list
+    {
+        if (v2 == vo)
+            return true;
+    }
+    return false;
+}
+
+string [int] listInvert(boolean [string] list)
+{
+    string [int] out;
+    foreach m, value in list
+    {
+        if (value)
+            out.listAppend(m);
+    }
+    return out;
+}
+
+int [int] listInvert(boolean [int] list)
+{
+    int [int] out;
+    foreach m, value in list
+    {
+        if (value)
+            out.listAppend(m);
+    }
+    return out;
+}
+
+skill [int] listInvert(boolean [skill] list)
+{
+    skill [int] out;
+    foreach m, value in list
+    {
+        if (value)
+            out.listAppend(m);
+    }
+    return out;
+}
+
+monster [int] listInvert(boolean [monster] monsters)
+{
+    monster [int] out;
+    foreach m, value in monsters
+    {
+        if (value)
+            out.listAppend(m);
+    }
+    return out;
+}
+
+location [int] listInvert(boolean [location] list)
+{
+    location [int] out;
+    foreach k, value in list
+    {
+        if (value)
+            out.listAppend(k);
+    }
+    return out;
+}
+
+familiar [int] listInvert(boolean [familiar] list)
+{
+    familiar [int] out;
+    foreach k, value in list
+    {
+        if (value)
+            out.listAppend(k);
+    }
+    return out;
+}
+
+item [int] listInvert(boolean [item] list)
+{
+    item [int] out;
+    foreach k, value in list
+    {
+        if (value)
+            out.listAppend(k);
+    }
+    return out;
+}
+
+skill [int] listConvertStringsToSkills(string [int] list)
+{
+    skill [int] out;
+    foreach key, s in list
+    {
+        out.listAppend(s.to_skill());
+    }
+    return out;
+}
+
+monster [int] listConvertStringsToMonsters(string [int] list)
+{
+    monster [int] out;
+    foreach key, s in list
+    {
+        out.listAppend(s.to_monster());
+    }
+    return out;
+}
+
+int [int] stringToIntIntList(string input, string delimiter)
+{
+	int [int] out;
+	if (input == "")
+		return out;
+	foreach key, v in input.split_string(delimiter)
+	{
+		out.listAppend(v.to_int());
+	}
+	return out;
+}
+
+int [int] stringToIntIntList(string input)
+{
+	return stringToIntIntList(input, ",");
+}
+
+buffer to_buffer(string str)
+{
+	buffer result;
+	result.append(str);
+	return result;
+}
+
+buffer copyBuffer(buffer buf)
+{
+    buffer result;
+    result.append(buf);
+    return result;
+}
+
+//split_string returns an immutable array, which will error on certain edits
+//Use this function - it converts to an editable map.
+string [int] split_string_mutable(string source, string delimiter)
+{
+	string [int] result;
+	string [int] immutable_array = split_string(source, delimiter);
+	foreach key in immutable_array
+		result[key] = immutable_array[key];
+	return result;
+}
+
+//This returns [] for empty strings. This isn't standard for split(), but is more useful for passing around lists. Hacky, I suppose.
+string [int] split_string_alternate(string source, string delimiter)
+{
+    if (source.length() == 0)
+        return listMakeBlankString();
+    return split_string_mutable(source, delimiter);
+}
+
+string slot_to_string(slot s)
+{
+    if (s == $slot[acc1] || s == $slot[acc2] || s == $slot[acc3])
+        return "accessory";
+    else if (s == $slot[sticker1] || s == $slot[sticker2] || s == $slot[sticker3])
+        return "sticker";
+    else if (s == $slot[folder1] || s == $slot[folder2] || s == $slot[folder3] || s == $slot[folder4] || s == $slot[folder5])
+        return "folder";
+    else if (s == $slot[fakehand])
+        return "fake hand";
+    else if (s == $slot[crown-of-thrones])
+        return "crown of thrones";
+    else if (s == $slot[buddy-bjorn])
+        return "buddy bjorn";
+    return s;
+}
+
+string slot_to_plural_string(slot s)
+{
+    if (s == $slot[acc1] || s == $slot[acc2] || s == $slot[acc3])
+        return "accessories";
+    else if (s == $slot[hat])
+        return "hats";
+    else if (s == $slot[weapon])
+        return "weapons";
+    else if (s == $slot[off-hand])
+        return "off-hands";
+    else if (s == $slot[shirt])
+        return "shirts";
+    else if (s == $slot[back])
+        return "back items";
+    
+    return s.slot_to_string();
+}
+
+
+string format_today_to_string(string desired_format)
+{
+    return format_date_time("yyyyMMdd", today_to_string(), desired_format);
+}
+
+
+string [int] __int_to_wordy_map;
+string int_to_wordy(int v) //Not complete, only supports a handful:
+{
+    if (__int_to_wordy_map.count() == 0)
+    {
+        __int_to_wordy_map = split_string("zero,one,two,three,four,five,six,seven,eight,nine,ten,eleven,twelve,thirteen,fourteen,fifteen,sixteen,seventeen,eighteen,nineteen,twenty,twenty-one,twenty-two,twenty-three,twenty-four,twenty-five,twenty-six,twenty-seven,twenty-eight,twenty-nine,thirty,thirty-one", ",");
+    }
+    if (__int_to_wordy_map contains v)
+        return __int_to_wordy_map[v];
+    return v.to_string();
+}
+
+
+boolean stringHasPrefix(string s, string prefix)
+{
+	if (s.length() < prefix.length())
+		return false;
+	else if (s.length() == prefix.length())
+		return (s == prefix);
+	else if (substring(s, 0, prefix.length()) == prefix)
+		return true;
+	return false;
+}
+
+boolean stringHasSuffix(string s, string suffix)
+{
+	if (s.length() < suffix.length())
+		return false;
+	else if (s.length() == suffix.length())
+		return (s == suffix);
+	else if (substring(s, s.length() - suffix.length()) == suffix)
+		return true;
+	return false;
+}
+
+string capitaliseFirstLetter(string v)
+{
+	buffer buf = v.to_buffer();
+	if (v.length() <= 0)
+		return v;
+	buf.replace(0, 1, buf.char_at(0).to_upper_case());
+	return buf.to_string();
+}
+
+string pluralise(float value, string non_plural, string plural)
+{
+	if (value == 1.0)
+		return value + " " + non_plural;
+	else
+		return value + " " + plural;
+}
+
+string pluralise(int value, string non_plural, string plural)
+{
+	if (value == 1)
+		return value + " " + non_plural;
+	else
+		return value + " " + plural;
+}
+
+string pluralise(int value, item i)
+{
+	return pluralise(value, i.to_string(), i.plural);
+}
+
+string pluralise(item i) //whatever we have around
+{
+	return pluralise(i.available_amount(), i);
+}
+
+string pluralise(effect e)
+{
+    return pluralise(e.have_effect(), "turn", "turns") + " of " + e;
+}
+
+string pluraliseWordy(int value, string non_plural, string plural)
+{
+	if (value == 1)
+    {
+        if (non_plural == "more time") //we're gonna celebrate
+            return "One More Time";
+        else if (non_plural == "more turn")
+            return "One More Turn";
+		return value.int_to_wordy() + " " + non_plural;
+    }
+	else
+		return value.int_to_wordy() + " " + plural;
+}
+
+string pluraliseWordy(int value, item i)
+{
+	return pluraliseWordy(value, i.to_string(), i.plural);
+}
+
+string pluraliseWordy(item i) //whatever we have around
+{
+	return pluraliseWordy(i.available_amount(), i);
+}
+
+
+//Additions to standard API:
+//Auto-conversion property functions:
+boolean get_property_boolean(string property)
+{
+	return get_property(property).to_boolean();
+}
+
+int get_property_int(string property)
+{
+	return get_property(property).to_int_silent();
+}
+
+location get_property_location(string property)
+{
+	return get_property(property).to_location();
+}
+
+float get_property_float(string property)
+{
+	return get_property(property).to_float();
+}
+
+monster get_property_monster(string property)
+{
+	return get_property(property).to_monster();
+}
+
+//Returns true if the propery is equal to my_ascensions(). Commonly used in mafia properties.
+boolean get_property_ascension(string property)
+{
+    return get_property_int(property) == my_ascensions();
+}
+
+element get_property_element(string property)
+{
+    return get_property(property).to_element();
+}
 
 //Utlity:
 //Mafia's text output doesn't handle very long strings with no spaces in them - they go horizontally past the text box. This is common for to_json()-types.
@@ -54,7 +1806,7 @@ void printSilent(string line)
     print_html(line.processStringForPrinting());
 }
 
-void listAppend(string [int] list, string entry)
+/*void listAppend(string [int] list, string entry)
 {
 	int position = list.count();
 	while (list contains position)
@@ -165,23 +1917,7 @@ int powi(int x, int p)
 {
     return x ** p;
 }
-
-int [int] stringToIntIntList(string input, string delimiter)
-{
-	int [int] out;
-	if (input == "")
-		return out;
-	foreach key, v in input.split_string(delimiter)
-	{
-		out.listAppend(v.to_int());
-	}
-	return out;
-}
-
-int [int] stringToIntIntList(string input)
-{
-	return stringToIntIntList(input, ",");
-}
+*/
 
 //File state:
 boolean __did_read_file_state = false;
@@ -880,10 +2616,16 @@ void actionSetDialsTo(int [int] dial_configuration)
 }
 
 
+void actionVisitBriefcase(boolean silence)
+{
+    if (!silence)
+        printSilent("Loading briefcase...", "gray");
+	updateState(visit_url("place.php?whichplace=kgb", false, false));
+}
+
 void actionVisitBriefcase()
 {
-	printSilent("Loading briefcase...", "gray");
-	updateState(visit_url("place.php?whichplace=kgb", false, false));
+    actionVisitBriefcase(false);
 }
 
 void actionPressLeftActuator()
@@ -1416,7 +3158,7 @@ Record TabStateTransition
 int [int] addNumberToTabConfiguration(int [int] configuration, int amount, int [int] permutation, boolean should_output)
 {
 	if (should_output)
-		printSilent("addNumberToTabConfiguration(" + configuration + ", " + amount + ", " + permutation + ")");
+		printSilent("addNumberToTabConfiguration(" + configuration.listJoinComponents("") + "," + amount + ", " + permutation.listJoinComponents("") + ")");
 	//Convert base-three number into base-ten:
 	int base_ten = convertTabConfigurationToBase10(configuration, permutation);
 	if (should_output)
@@ -1475,7 +3217,7 @@ void calculateStateTransitionInformation(int [int][int] all_permutations, TabSta
 				continue;
 			int [int] permutation = all_permutations[i];
 			boolean should_output = false;
-			/*if (permutation[0] == 1 && permutation[1] == 0 && permutation[2] == 3 && permutation[3] == 4 && permutation[4] == 2 && permutation[5] == 5 && button_function_id == 5)
+			/*if (permutation[0] == 5 && permutation[1] == 0 && permutation[2] == 2 && permutation[3] == 4 && permutation[4] == 3 && permutation[5] == 1 && button_function_id == 5)
 				should_output = true;*/
 			//Apply button_function to transition.before_tab_configuration. Do we get transition.after_tab_configuration?
 			int [int] configuration = transition.before_tab_configuration.listCopy();
@@ -1616,7 +3358,7 @@ boolean [int][int] calculateTabs()
 				{
 					if (valid_possible_button_configurations[key][key2][key3])
 					{
-						printSIlent(key + ", " + key2 + ", " + key3 + " is valid");
+						printSilent(key + ", " + key2 + ", " + key3 + " is valid");
 					}
 				}
 			}
@@ -1853,7 +3595,7 @@ int [int] discoverTabPermutation(boolean allow_actions)
 		}
 		if (next_chosen_button == -1)
 		{
-			abort("internal error while discovering tab permutation, not sure what to do next");
+			abort("Internal error while discovering tab permutation, not sure what to do next. Try the command \"briefcase clear\"?");
 			int [int] blank;
 			return blank;
 		}
@@ -2232,7 +3974,11 @@ void useMovingTabsToReachValidNumbers(boolean [int] using_valid_numbers, int [in
     }
 }
 
-void collectSplendidMartinis()
+int MARTINI_TYPE_BASIC = 1;
+int MARTINI_TYPE_IMPROVED = 2;
+int MARTINI_TYPE_SPLENDID = 3;
+
+void collectMartinis(int martini_type, boolean should_take_action)
 {
 	//FIXME don't do this if we don't have enough clicks for the day to finish?
 	if (__file_state["_martini hose collected"].to_int() >= 3)
@@ -2240,8 +3986,16 @@ void collectSplendidMartinis()
 		printSilent("Already collected from the hose today.");
 		return;
 	}
-	unlockMartiniHose();
-	discoverButtonWithFunctionID(5); //100
+    if (should_take_action)
+    {
+        unlockMartiniHose();
+        discoverButtonWithFunctionID(5); //100
+    }
+    if (martini_type != MARTINI_TYPE_SPLENDID)
+    {
+        abort("not yet implemented");
+        return;
+    }
     
     int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
     
@@ -2266,7 +4020,7 @@ void collectSplendidMartinis()
             using_valid_numbers = valid_splendid_numbers_moving;
             useMovingTabsToReachValidNumbers(using_valid_numbers, tab_permutation);
         }
-        if (!(using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)))
+        if (!(using_valid_numbers contains convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation)) && should_take_action)
         {
             boolean [int] using_valid_numbers_extra;
             foreach v in using_valid_numbers
@@ -2287,7 +4041,8 @@ void collectSplendidMartinis()
 		}
 		else
 		{
-			printSilent("Can't collect splendid martinis. Maybe out of clicks?", "red");
+            if (should_take_action)
+                printSilent("Can't collect splendid martinis. Maybe out of clicks?", "red");
 			return;
 		}
         //abort("well?");
@@ -2381,6 +4136,20 @@ void parseBriefcaseEnchantments()
 {
 	for i from 0 to 2
 		__briefcase_enchantments[i] = -1;
+    
+    //So, caching!
+    //If clicks haven't changed since last view, we probably are the same.
+    int clicks_used = get_property_int("_kgbClicksUsed");
+    if ((__file_state contains "_enhancements_cache_clicks_used") && __file_state["_enhancements_cache_clicks_used"].to_int() == clicks_used)
+    {
+        //Parse and return:
+        foreach key, value in __file_state["_enhancements_cache"].split_string(",")
+        {
+            __briefcase_enchantments[key] = value.to_int();
+        }
+        return;
+    }
+    
 	printSilent("Viewing briefcase enchantments.", "gray");
 	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
 	
@@ -2429,6 +4198,13 @@ void parseBriefcaseEnchantments()
 		printSilent("__briefcase_enchantments = " + __briefcase_enchantments.to_json());
 		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents(", ", "and").entity_encode());
 	}
+    else
+    {
+        //Cache!
+        __file_state["_enhancements_cache_clicks_used"] = clicks_used;
+        __file_state["_enhancements_cache"] = __briefcase_enchantments.listJoinComponents(",");
+        writeFileState();
+    }
 }
 
 string decorateEnchantmentOutput(string word, int slot_id, int id)
@@ -2443,7 +4219,7 @@ string decorateEnchantmentOutput(string word, int slot_id, int id)
 	return output;
 }
 
-void handleEnchantmentCommand(string command)
+void handleEnchantmentCommand(string command, boolean from_relay)
 {
 	string [int] words = command.split_string(" ");
 	
@@ -2478,8 +4254,14 @@ void handleEnchantmentCommand(string command)
 		printSilent("\"briefcase e -combat\" would give it -combat.");
 	}
 	else
-	{	
-		outputStatus();
+	{
+        if (__file_state["_out of clicks for the day"].to_boolean())
+        {
+            printSilent("Out of clicks for the day.");
+            return;
+        }
+        if (!from_relay)
+            outputStatus();
 		chargeFlywheel();
 		unlockButtons();
 		actionSetHandleTo(false);
@@ -2519,9 +4301,9 @@ void handleEnchantmentCommand(string command)
 				desired_slot_configuration[2] = 1;
 			else if (word == "fights" || word == "fites" || word == "fight" || word == "fite")
 				desired_slot_configuration[2] = 2;
-			else if (word == "-combat")
+			else if (word == "-combat" || word == "minuscombat")
 				desired_slot_configuration[2] = 3;
-			else if (word == "+combat")
+			else if (word == "+combat" || word == "pluscombat")
 				desired_slot_configuration[2] = 4;
 			else if (word == "ml" || word == "monsterlevel")
 				desired_slot_configuration[2] = 5;
@@ -2779,7 +4561,7 @@ void outputBuffHelpLine(boolean [effect] buffs_know_about, Tab [effect] buffs_to
     printSilent(line, colour);
 }
 
-void handleBuffCommand(string command)
+void handleBuffCommand(string command, boolean from_relay)
 {
 	string [int] words = command.split_string(" ");
 	
@@ -2829,12 +4611,13 @@ void handleBuffCommand(string command)
 		//printSilent("buffs_within_current_configuration = " + buffs_within_current_configuration.to_json());
 	}
 	else
-	{	
-		outputStatus();
+	{
+        if (!from_relay)
+            outputStatus();
 		chargeFlywheel();
 		unlockButtons();
         discoverTabPermutation(true);
-		actionSetHandleTo(true);
+		actionSetHandleTo(true); //this needs to be somewhere else
         
         if (testTabsAreMoving())
         {
@@ -3153,18 +4936,45 @@ void recalculateVarious()
 		calculatePossibleLightringsValues(false, false);
 }
 
-
-if (__setting_output_help_before_main)
-	outputHelp();
-
-void main(string command)
+void collectOnceDailies()
 {
-	if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
+    //Will collect splendid martinis, if we can with no cost.
+    
+	//Collect drawers:
+	if (__state.left_drawer_unlocked && !__file_state["_left drawer collected"].to_boolean())
 	{
-		printSilent("You don't seem to own a briefcase.");
-		return;
+		actionCollectLeftDrawer();
 	}
-    if (!get_property("svnUpdateOnLogin").to_boolean())
+	if (__state.right_drawer_unlocked && !__file_state["_right drawer collected"].to_boolean())
+	{
+		actionCollectRightDrawer();
+	}
+    if (__state.case_opening_unlocked && !__file_state["_case opened"].to_boolean())
+    {
+        printSilent("Opening case...", "gray");
+        updateState(visit_url("place.php?whichplace=kgb&action=kgb_daily"));
+        __file_state["_case opened"] = true;
+        writeFileState();
+    }
+    //So, can we collect martinis?
+    if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_martini hose collected"].to_int() < 3)
+    {
+        collectMartinis(MARTINI_TYPE_SPLENDID, false);
+    }
+}
+
+buffer executeCommandCore(string command, boolean from_relay)
+{
+    buffer out;
+    if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
+	{
+        if (from_relay)
+            out.append("You don't seem to own a briefcase.");
+        else
+            printSilent("You don't seem to own a briefcase.");
+		return out;
+	}
+    if (!get_property("svnUpdateOnLogin").to_boolean() && !from_relay)
     {
         printSilent("Consider enabling Preferences>SVN>Update installed SVN projects on login; this script is changing often.");
     }
@@ -3176,22 +4986,36 @@ void main(string command)
 		{
 			outputHelp();
 		}
-		return;
+		return out;
 	}
-	if (__setting_output_help_before_main)
+	if (__setting_output_help_before_main && !from_relay)
 	{
 		printSilent("");
 		printSilent("<hr>");
 		printSilent("");
 	}
+    
+    
 	
-	actionVisitBriefcase();
+	if (command == "clear")
+    {
+        boolean yes = user_confirm("Clear your tracking values? This should only be done if the script is erroring.");
+        if (!yes)
+            return out;
+        print("Clearing tracking settings...");
+        string [string] blank;
+        __file_state = blank;
+        writeFileState();
+        return out;
+    }
+	
+	actionVisitBriefcase(true);
 	recalculateVarious();
 	
 	if (command == "status")
 	{
 		outputStatus();
-		return;
+		return out;
 	}
 	if (command == "discover")
 		discoverTabPermutation(true);
@@ -3203,19 +5027,19 @@ void main(string command)
 	{
 		chargeFlywheel();
 		printSilent("Done.");
-		return;
+		return out;
 	}
 	if (command == "antennae" || command == "jacobs" || command == "ladder" || command == "jacob")
 	{
 		chargeAntennae();
 		printSilent("Done.");
-		return;
+		return out;
 	}
 	if (command == "reset")
 	{
 		boolean yes = user_confirm("Reset the briefcase? Are you sure?");
 		if (!yes)
-			return;
+			return out;
 		//up (initial) -> down -> up -> down -> up does not reset
 		int flips = 4;
 		if (__state.handle_up)
@@ -3223,23 +5047,24 @@ void main(string command)
 		for i from 1 to flips
 			actionManipulateHandle();
 		printSilent("Done.");
-		return;
+		return out;
 	}
 	if (command.stringHasPrefix("enchantment") || command.stringHasPrefix("e ") || command == "e")
 	{
-		handleEnchantmentCommand(command);
-		return;
+		handleEnchantmentCommand(command, from_relay);
+		return out;
 	}
 	
 	if (command.stringHasPrefix("buff") || command.stringHasPrefix("b ") || command == "b")
 	{
-        handleBuffCommand(command);
-		return;
+        handleBuffCommand(command, from_relay);
+		return out;
 	}
 	
 	chargeFlywheel();
 	
-	outputStatus();
+    if (!from_relay)
+        outputStatus();
 	if (command == "hose")
 	{
 		unlockMartiniHose();
@@ -3267,11 +5092,11 @@ void main(string command)
 	}
 	if (command == "solve")
 	{
-        if (!can_interact())
+        if (!can_interact() && !from_relay)
         {
             boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Or maybe not.");
             if (!yes)
-                return;
+                return out;
         }
 		lightSecondLight();
 		lightThirdLight();
@@ -3285,18 +5110,18 @@ void main(string command)
 	{
 		lightThirdLight();
 	}
-	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks" || command == "collect")
+	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks" || command == "collect" || command == "splendid martini")
 	{
 		//Increment tabs to 222222, collect splendid martinis:
-		collectSplendidMartinis();
+		collectMartinis(MARTINI_TYPE_SPLENDID, true);
 	}
-    if (command == "basic")
+    if (command == "basic" || command == "basic martini")
     {
-        
+        collectMartinis(MARTINI_TYPE_BASIC, true);
     }
-    if (command == "improved")
+    if (command == "improved" || command == "improved martini")
     {
-        
+        collectMartinis(MARTINI_TYPE_IMPROVED, true);
     }
 	if (command == "identify")
 	{
@@ -3390,23 +5215,24 @@ void main(string command)
     }
 	
 	//After all that, do other stuff:
-	//Collect drawers:
-	if (__state.left_drawer_unlocked && !__file_state["_left drawer collected"].to_boolean())
-	{
-		actionCollectLeftDrawer();
-	}
-	if (__state.right_drawer_unlocked && !__file_state["_right drawer collected"].to_boolean())
-	{
-		actionCollectRightDrawer();
-	}
-    if (__state.case_opening_unlocked && !__file_state["_case opened"].to_boolean())
-    {
-        printSilent("Opening case...", "gray");
-        updateState(visit_url("place.php?whichplace=kgb&action=kgb_daily"));
-        __file_state["_case opened"] = true;
-        writeFileState();
-    }
-	print("Done.");
+    collectOnceDailies();	print("Done.");
+    return out;
+}
+
+buffer executeCommand(string command, boolean from_relay)
+{
+    buffer result = executeCommandCore(command, from_relay);
+    return result;
+}
+//import "scripts/Briefcase/Relay Script/Relay Main.ash";
+
+
+if (__setting_output_help_before_main)
+	outputHelp();
+
+void main(string command)
+{
+    executeCommand(command, false);
 }
 
 /*
