@@ -3,7 +3,7 @@ since r18080;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0";
+string __briefcase_version = "2.0.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -5336,6 +5336,8 @@ buffer handleBuffCommand(string command, boolean from_relay)
             starting_effect_count[e] = e.have_effect();
         }
         int [effect] desired_buffs;
+        effect [int] desired_buffs_linear;
+        boolean last_was_all = false;
         for word_id from 1 to words.count() - 1
         {
             //Parse buff:
@@ -5363,6 +5365,11 @@ buffer handleBuffCommand(string command, boolean from_relay)
                 desired_buff = $effect[Thunderspell];
             else if (word == "moxie_percentage" || word == "moxie_per" || word == "goldentongue" || word == "moxie")
                 desired_buff = $effect[Goldentongue];
+            else if (word == "all")
+            {
+                last_was_all = true;
+                continue;
+            }
             /*else if (word == "muscle")
             {
                 if (my_basestat($stat[muscle]) >= 30)
@@ -5391,7 +5398,19 @@ buffer handleBuffCommand(string command, boolean from_relay)
                 continue;
             }
             desired_buffs[desired_buff] += 1;
-            if (desired_buff.have_effect() > starting_effect_count[desired_buff]) //already happened
+            desired_buffs_linear.listAppend(desired_buff);
+            if (last_was_all)
+            {
+                for i from 1 to 6
+                {
+                    desired_buffs[desired_buff] += 1;
+                    desired_buffs_linear.listAppend(desired_buff);
+                }
+            }
+        }
+        foreach key, desired_buff in desired_buffs_linear
+        {
+            if (desired_buff.have_effect() >= starting_effect_count[desired_buff] + 50 * desired_buffs[desired_buff]) //already happened
                 continue;
             int desired_buff_id = __spy_effect_to_buff_id[desired_buff];
             //Try to identify it, if we don't know about it:
@@ -5408,7 +5427,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
             int breakout = 35;
 			while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
             {
-                if (desired_buff.have_effect() > starting_effect_count[desired_buff]) //we found it somehow, maybe the random tab
+                if (desired_buff.have_effect() >= starting_effect_count[desired_buff] + 50 * desired_buffs[desired_buff]) //we found it somehow, maybe the random tab
                     break;
                 //Since we don't know the buff, we'll try identifying tabs.
                 //Compute every tab's known state:
@@ -5995,7 +6014,7 @@ buffer generateFirstText()
         out2.append(HTMLGenerateTagPrefix("div", mapMake("style", "display:table-row;")));
         
         //foreach s in $strings[Basic,Improved,Splendid]
-        boolean ezandora_is_too_lazy_to_write_improved_martini_code = true;
+        boolean ezandora_is_too_lazy_to_write_improved_martini_code = !__setting_debug;
         for i from 0 to 2
         {
             int item_id = 9494 + i;
