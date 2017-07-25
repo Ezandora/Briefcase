@@ -86,3 +86,8 @@ __moxie_absolute:__ +30 moxie (not yet known)
 
 
 The command "briefcase buff item" would spend clicks until we obtained the +50% item buff. "briefcase buff meat" would do the same for +meat.
+
+
+Screenshot
+----------------  
+![GUI](https://raw.github.com/Ezandora/Briefcase/master/Images/gui.png)
