@@ -50,9 +50,9 @@ function parseRelayResponse(response_string, popup_element)
 	var core_html = response["core HTML"];
 	var popup_result = response["popup result"];
 	
+	var popup_container = document.getElementById("briefcase_notification_div");
 	if (popup_result != undefined && popup_result != "")
 	{
-		var popup_container = document.getElementById("briefcase_notification_div");
 		
 		//Move the rest of them up:
 		/*var other_elements = popup_container.getElementsByClassName("briefcase_popup");
@@ -73,6 +73,10 @@ function parseRelayResponse(response_string, popup_element)
 		//Update
 		popup_element.innerHTML = popup_result;
 		setTimeout(function() {fadeOutPopup(popup_container, popup_element)}, 7000);
+	}
+	else
+	{
+		fadeOutPopup(popup_container, popup_element);
 	}
 	
 	//document.body.innerHTML = body_html;

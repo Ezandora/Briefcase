@@ -1,9 +1,9 @@
-since r18080;
+since r18110;
 //Briefcase.ash
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.1";
+string __briefcase_version = "2.0.2";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1381,7 +1381,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.31a1";
+string __version = "1.4.31";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -2633,6 +2633,33 @@ int convertTabConfigurationToBase10(int [int] configuration, int [int] permutati
 	return base_ten;
 }
 
+
+//Returns true if done.
+boolean incrementTabConfiguration(int [int] configuration, int ignoring_index)
+{
+	//Try next code:
+	int i = 5;
+	while (i >= 0)
+	{
+        if (i == ignoring_index)
+        {
+            i--;
+            continue;
+        }
+		configuration[i]++;
+		if (configuration[i] > 2)
+		{
+			configuration[i] = 0;
+			i--;
+		}
+		else
+			break;
+	}
+	if (i < 0)
+		return true;
+	return false;
+}
+
 boolean configurationsAreEqual(int [int] configuration_a, int [int] configuration_b)
 {
 	if (configuration_a.count() != configuration_b.count()) return false;
@@ -2825,7 +2852,7 @@ string constructTabIdentifierForTab(int pressed_tab_number, int pressed_tab_stat
 }
 
 BriefcaseState __state;
-BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int action_number)
+BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int action_number, boolean allow_visiting_urls)
 {
 	if (page_text.length() == 0)
 	{
@@ -2835,7 +2862,8 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	{
 		//We should reload the page for state:
 		print_html("Revisiting page...");
-		page_text = visit_url("place.php?whichplace=kgb");
+        if (allow_visiting_urls)
+            page_text = visit_url("place.php?whichplace=kgb");
 	}
 	BriefcaseState state;
 	//Intruder alert! Red spy is in the base!
@@ -2971,18 +2999,25 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		if (state.horizontal_light_states[3] == LIGHT_STATE_ON && !(__state.tab_configuration[0] == 0 && __state.tab_configuration[1] == 0 && __state.tab_configuration[2] == 0 && __state.tab_configuration[3] == 0 && __state.tab_configuration[4] == 0 && __state.tab_configuration[5] == 0)) //can't be moving, last was 0,0,0,0,0,0
 		{
 			//Are they moving?
-			buffer page_text_2 = visit_url("place.php?whichplace=kgb");
-			state.tab_configuration = parseTabState(page_text_2);
-			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
-			{
-				tabs_are_moving = true;
-                state.know_last_was_moving = true;
-                state.last_action_was_moving = true;
-			}
-			if (current_tab_configuration[0] == 0 && current_tab_configuration[1] == 0 && current_tab_configuration[2] == 0 && current_tab_configuration[3] == 0 && current_tab_configuration[4] == 0 && current_tab_configuration[5] == 0) //there is no way to know if the tabs were moving; just don't write this one?
-			{
-				should_write = false;
-			}
+            if (!allow_visiting_urls)
+            {
+                should_write = false;
+            }
+            else
+            {
+                buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+                state.tab_configuration = parseTabState(page_text_2);
+                if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
+                {
+                    tabs_are_moving = true;
+                    state.know_last_was_moving = true;
+                    state.last_action_was_moving = true;
+                }
+                if (current_tab_configuration[0] == 0 && current_tab_configuration[1] == 0 && current_tab_configuration[2] == 0 && current_tab_configuration[3] == 0 && current_tab_configuration[4] == 0 && current_tab_configuration[5] == 0) //there is no way to know if the tabs were moving; just don't write this one?
+                {
+                    should_write = false;
+                }
+            }
 		}
 		//Save previous tab state, button pressed, and current tab state:
 		if (should_write)
@@ -3006,20 +3041,28 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		int pressed_tab_number = action_number;
 		int pressed_tab_state = state.tab_configuration[pressed_tab_number - 1];
 		boolean tabs_are_moving = false;
+        boolean just_stop = false;
 		int [int] current_tab_configuration = state.tab_configuration.listCopy();
 		if (state.horizontal_light_states[3] == LIGHT_STATE_ON)
 		{
 			//Are they moving?
-			buffer page_text_2 = visit_url("place.php?whichplace=kgb");
-			state.tab_configuration = parseTabState(page_text_2);
-			if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
-			{
-				tabs_are_moving = true;
-                state.know_last_was_moving = true;
-                state.last_action_was_moving = true;
-			}
+            if (!allow_visiting_urls)
+            {
+                just_stop = true;
+            }
+            else
+            {
+                buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+                state.tab_configuration = parseTabState(page_text_2);
+                if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
+                {
+                    tabs_are_moving = true;
+                    state.know_last_was_moving = true;
+                    state.last_action_was_moving = true;
+                }
+            }
 		}
-		if (!tabs_are_moving)
+		if (!tabs_are_moving && !just_stop)
 		{
 			boolean consistent_tab = true;
 			int effect_number = -1; //using the 00X system
@@ -3128,12 +3171,17 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 
 BriefcaseState parseBriefcaseStatePrivate(buffer page_text)
 {
-	return parseBriefcaseStatePrivate(page_text, ACTION_TYPE_NONE, -1);
+	return parseBriefcaseStatePrivate(page_text, ACTION_TYPE_NONE, -1, true);
+}
+
+void updateState(buffer page_text, int action_type, int action_number, boolean allow_visiting_urls)
+{
+	__state = parseBriefcaseStatePrivate(page_text, action_type, action_number, allow_visiting_urls);
 }
 
 void updateState(buffer page_text, int action_type, int action_number)
 {
-	__state = parseBriefcaseStatePrivate(page_text, action_type, action_number);
+    updateState(page_text, action_type, action_number, true);
 }
 
 void updateState(buffer page_text)
@@ -4667,12 +4715,12 @@ void collectMartinis(int martini_type, boolean should_take_action)
         }
         return;
     }
-    if (martini_type != MARTINI_TYPE_SPLENDID)
+    /*if (martini_type != MARTINI_TYPE_SPLENDID && false)
     {
         //Improved is not tab sum of 5. Tab sum of 6 is valid.
         abort("not yet implemented");
         return;
-    }
+    }*/
     if (should_take_action)
     {
         unlockMartiniHose();
@@ -4681,7 +4729,38 @@ void collectMartinis(int martini_type, boolean should_take_action)
     
     int [int] tab_permutation = stringToIntIntList(__file_state["tab permutation"]);
     
-    boolean [int] valid_splendid_numbers = $ints[485, 647, 701, 719, 725, 727, 728];
+    boolean [int] valid_splendid_numbers;
+    
+    if (martini_type == MARTINI_TYPE_SPLENDID)
+        valid_splendid_numbers = $ints[485, 647, 701, 719, 725, 727, 728];
+    if (martini_type == MARTINI_TYPE_IMPROVED)
+    {
+        int [int] configuration;
+        int [int] using_permutation;
+        for i from 0 to 5
+            using_permutation[i] = i;
+        for i from 0 to 5
+            configuration[i] = 0;
+        
+        while (true)
+        {
+            int tab_sum = 0;
+            for i from 0 to 5
+            {
+                tab_sum += configuration[i];
+            }
+            if (tab_sum >= 6)
+            {
+                int base_ten = convertTabConfigurationToBase10(configuration, using_permutation);
+                valid_splendid_numbers[base_ten] = true;
+            }
+        
+            boolean done = incrementTabConfiguration(configuration, -1);
+            if (done)
+                break;
+        }
+    }
+    
     boolean [int] valid_splendid_numbers_moving;
     foreach value in valid_splendid_numbers
     {
@@ -5078,33 +5157,6 @@ Tab TabFromFileBuff(int buff_id)
     return result;
 }
 
-
-//Returns true if done.
-boolean incrementTabConfiguration(int [int] configuration, int ignoring_index)
-{
-	//Try next code:
-	int i = 5;
-	while (i >= 0)
-	{
-        if (i == ignoring_index)
-        {
-            i--;
-            continue;
-        }
-		configuration[i]++;
-		if (configuration[i] > 2)
-		{
-			configuration[i] = 0;
-			i--;
-		}
-		else
-			break;
-	}
-	if (i < 0)
-		return true;
-	return false;
-}
-
 int countNumberOfUnknownTabs(int [int] tab_configuration, boolean [int][int] tabs_known)
 {
     int count = 0;
@@ -5406,6 +5458,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
                     desired_buffs[desired_buff] += 1;
                     desired_buffs_linear.listAppend(desired_buff);
                 }
+                last_was_all = false;
             }
         }
         foreach key, desired_buff in desired_buffs_linear
@@ -6014,7 +6067,7 @@ buffer generateFirstText()
         out2.append(HTMLGenerateTagPrefix("div", mapMake("style", "display:table-row;")));
         
         //foreach s in $strings[Basic,Improved,Splendid]
-        boolean ezandora_is_too_lazy_to_write_improved_martini_code = !__setting_debug;
+        boolean ezandora_is_too_lazy_to_write_improved_martini_code = false;
         for i from 0 to 2
         {
             int item_id = 9494 + i;
@@ -6025,20 +6078,32 @@ buffer generateFirstText()
             string style = "display:table-cell;width:33%;";
             style += "text-align:center;";
             string command = it.to_string();
+            
+            int clicks = 0;
             if (i == 0)
             {
                 //style += "text-align:right;";
-                description += HTMLGenerateSpanOfClass(" (1)", "briefcase_subtext");
             }
             else if (i == 1)
             {
+                clicks = 7;
                 //style += "text-align:center;";
-                description += HTMLGenerateSpanOfClass(" (~8)", "briefcase_subtext");
             }
             else if (i == 2)
             {
+                clicks = 12;
                 //style += "text-align:left;";
-                description += HTMLGenerateSpanOfClass(" (~13)", "briefcase_subtext");
+            }
+            if (!__state.martini_hose_unlocked)
+                clicks += 1;
+            if (clicks > 0)
+            {
+                string line = " (";
+                if (clicks > 1)
+                    line += "~";
+                line += clicks;
+                line += ")";
+                description += HTMLGenerateSpanOfClass(line, "briefcase_subtext");
             }
             
             
@@ -6455,7 +6520,6 @@ void handleFormRelayRequest()
             command_result.append("Acquired " + items_gained_description.listJoinComponents(", ", "and") + ".");
         }
         
-        
         response["popup result"] = command_result;
         //response["popup result"] = "Acquired 3 exploding cigars";
     }
@@ -6481,6 +6545,28 @@ void handleFormRelayRequest()
     write(response.to_json());
 }
 
+void processPageVisit(buffer page_text, string [string] form_fields)
+{
+    if (form_fields["whichplace"] != "kgb")
+        return;
+    //place.php?whichplace=kgb&action=kgb_tab5
+    int action_type = ACTION_TYPE_UNKNOWN;
+    int action_number = -1;
+    
+    string action_taken = form_fields["action"];
+    for tab_id from 1 to 6
+    {
+        if (action_taken == "kgb_tab" + tab_id)
+        {
+            action_type = ACTION_TYPE_TAB;
+            action_number = tab_id;
+        }
+    }
+    //print_html("action_type = " + action_type + ", action_number = " + action_number);
+    if (action_type != ACTION_TYPE_UNKNOWN)
+        updateState(page_text, action_type, action_number, false);
+}
+
 void relayScriptMain()
 {
     if (form_fields()["relay_request"] != "")
@@ -6490,7 +6576,9 @@ void relayScriptMain()
     }
     if (get_property_boolean("kgbbriefcase_disable_gui"))
     {
+        string [string] form_fields = form_fields();
         buffer page_text = visit_url();
+        processPageVisit(page_text, form_fields);
         string extra = "<div onclick=\"var form_data = 'relay_request=true&type=enable_gui'; var request = new XMLHttpRequest(); request.onreadystatechange = function() { if (request.readyState == 4) { if (request.status == 200) { location.reload() } } }; request.open('POST', 'place.kgb.ash'); request.send(form_data);\" style=\"text-decoration:underline;cursor:pointer;\">Enable GUI</div><br>";
         page_text.replace_string("<a href=inventory.php>Back to your Inventory</a>", extra + "<a href=inventory.php>Back to your Inventory</a>");
         page_text.replace_string("alt=\"Handle (up)\"", "alt=\"Handle (up)\" style=\"opacity:0.5;\""); //oOoOOoooo ghost handle
