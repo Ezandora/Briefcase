@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.2";
+string __briefcase_version = "2.0.3";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1531,25 +1531,10 @@ buffer PageGenerateBodyContents()
     return Page().PageGenerateBodyContents();
 }
 
-buffer PageGenerate(Page page_in)
+buffer PageGenerateStyle(Page page_in)
 {
-	buffer result;
-	
-	result.append("<!DOCTYPE html>\n"); //HTML 5 target
-	result.append("<html>\n");
-	
-	//Head:
-	result.append("\t<head>\n");
-	result.append("\t\t<title>");
-	result.append(page_in.title);
-	result.append("</title>\n");
-	if (page_in.head_contents.length() != 0)
-	{
-        result.append("\t\t");
-		result.append(page_in.head_contents);
-		result.append("\n");
-	}
-	//Write CSS styles:
+    buffer result;
+    
     if (page_in.defined_css_blocks.count() > 0)
     {
         if (true)
@@ -1571,6 +1556,34 @@ buffer PageGenerate(Page page_in)
             result.append("\t\t</style>\n");
         }
     }
+    return result;
+}
+
+buffer PageGenerateStyle()
+{
+    return Page().PageGenerateStyle();
+}
+
+buffer PageGenerate(Page page_in)
+{
+	buffer result;
+	
+	result.append("<!DOCTYPE html>\n"); //HTML 5 target
+	result.append("<html>\n");
+	
+	//Head:
+	result.append("\t<head>\n");
+	result.append("\t\t<title>");
+	result.append(page_in.title);
+	result.append("</title>\n");
+	if (page_in.head_contents.length() != 0)
+	{
+        result.append("\t\t");
+		result.append(page_in.head_contents);
+		result.append("\n");
+	}
+	//Write CSS styles:
+    result.append(PageGenerateStyle(page_in));
     result.append("\t</head>\n");
 	
 	//Body:
@@ -5465,6 +5478,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
         {
             if (desired_buff.have_effect() >= starting_effect_count[desired_buff] + 50 * desired_buffs[desired_buff]) //already happened
                 continue;
+            int pre_loop_effect_count = desired_buff.have_effect();
             int desired_buff_id = __spy_effect_to_buff_id[desired_buff];
             //Try to identify it, if we don't know about it:
             if (__file_state["tab effect " + desired_buff_id] != "")
@@ -5481,6 +5495,8 @@ buffer handleBuffCommand(string command, boolean from_relay)
 			while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
             {
                 if (desired_buff.have_effect() >= starting_effect_count[desired_buff] + 50 * desired_buffs[desired_buff]) //we found it somehow, maybe the random tab
+                    break;
+                if (desired_buff.have_effect() > pre_loop_effect_count)
                     break;
                 //Since we don't know the buff, we'll try identifying tabs.
                 //Compute every tab's known state:
