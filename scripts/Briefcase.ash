@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.4";
+string __briefcase_version = "2.0.5";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -3334,6 +3334,124 @@ int computePathLengthToNumber(int target_number, int starting_number)
     }
     return buttons_pressed;
 }
+
+int [int] __briefcase_enchantments; //slot -> enchantment, in order
+void parseBriefcaseEnchantments()
+{
+	for i from 0 to 2
+		__briefcase_enchantments[i] = -1;
+    
+    //So, caching!
+    //If clicks haven't changed since last view, we probably are the same.
+    int clicks_used = get_property_int("_kgbClicksUsed");
+    if ((__file_state contains "_enhancements_cache_clicks_used") && __file_state["_enhancements_cache_clicks_used"].to_int() == clicks_used)
+    {
+        //Parse and return:
+        foreach key, value in __file_state["_enhancements_cache"].split_string(",")
+        {
+            __briefcase_enchantments[key] = value.to_int();
+        }
+        return;
+    }
+    
+	printSilent("Viewing briefcase enchantments.", "gray");
+	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
+	
+	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
+	foreach key, enchantment in enchantments
+	{
+		if (enchantment == "Weapon Damage +25%")
+			__briefcase_enchantments[0] = 0;
+		else if (enchantment == "Spell Damage +50%")
+			__briefcase_enchantments[0] = 1;
+		else if (enchantment == "+5 <font color=red>Hot Damage</font>")
+			__briefcase_enchantments[0] = 2;
+		else if (enchantment == "+10% chance of Critical Hit")
+			__briefcase_enchantments[0] = 3;
+		else if (enchantment == "+25% Combat Initiative")
+			__briefcase_enchantments[1] = 0;
+		else if (enchantment == "Damage Absorption +100")
+			__briefcase_enchantments[1] = 1;
+		else if (enchantment == "Superhuman Hot Resistance (+5)")
+			__briefcase_enchantments[1] = 2;
+		else if (enchantment == "Superhuman Cold Resistance (+5)")
+			__briefcase_enchantments[1] = 3;
+		else if (enchantment == "Superhuman Spooky Resistance (+5)")
+			__briefcase_enchantments[1] = 4;
+		else if (enchantment == "Superhuman Stench  Resistance (+5)") //that extra space is only for this enchantment
+			__briefcase_enchantments[1] = 5;
+		else if (enchantment == "Superhuman Sleaze Resistance (+5)")
+			__briefcase_enchantments[1] = 6;
+		else if (enchantment == "Regenerate 5-10 MP per Adventure")
+			__briefcase_enchantments[2] = 0;
+		else if (enchantment == "+5 Adventure(s) per day")
+			__briefcase_enchantments[2] = 1;
+		else if (enchantment == "+5 PvP Fight(s) per day")
+			__briefcase_enchantments[2] = 2;
+		else if (enchantment == "Monsters will be less attracted to you")
+			__briefcase_enchantments[2] = 3;
+		else if (enchantment == "Monsters will be more attracted to you")
+			__briefcase_enchantments[2] = 4;
+		else if (enchantment == "+25 to Monster Level")
+			__briefcase_enchantments[2] = 5;
+		else if (enchantment == "-3 MP to use Skills")
+			__briefcase_enchantments[2] = 6;
+	}
+	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
+	{
+		printSilent("__briefcase_enchantments = " + __briefcase_enchantments.to_json());
+		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents(", ", "and").entity_encode());
+	}
+    else
+    {
+        //Cache!
+        __file_state["_enhancements_cache_clicks_used"] = clicks_used;
+        __file_state["_enhancements_cache"] = __briefcase_enchantments.listJoinComponents(",");
+        writeFileState();
+    }
+}
+
+int enchantmentDeltaToAdventures(int current_enchantment)
+{
+    //hardcoded deltas because lazy
+    if (current_enchantment == 0)
+        return 1;
+    else if (current_enchantment == 1)
+        return 0;
+    else if (current_enchantment == 2)
+        return 1;
+    else if (current_enchantment == 3)
+        return 2;
+    else if (current_enchantment == 4)
+        return 3;
+    else if (current_enchantment == 5)
+        return 3;
+    else if (current_enchantment == 6)
+        return 2;
+    return -1;
+}
+
+boolean haveClicksRemaining(int clicks_needed)
+{
+    if (__file_state["_out of clicks for the day"].to_boolean())
+        return false;
+    
+    boolean reserve_for_adventures = __file_state["_reserve for adventures"].to_boolean();
+    if (!reserve_for_adventures)
+        return true;
+    //How many clicks does it take to reach +adventures, and how many do we have left?
+    int clicks_remaining = clampi(22 - get_property_int("_kgbClicksUsed"), 0, 22); //not quite accurate, but
+    int clicks_needed_for_adventures = 0;
+    if (__briefcase_enchantments.count() == 0)
+    {
+        parseBriefcaseEnchantments();
+    }
+    //__briefcase_enchantments[2] = 1 is adventures
+    int delta = enchantmentDeltaToAdventures(__briefcase_enchantments[2]);
+    if (clicks_remaining - clicks_needed < delta && delta > 0)
+        return false;
+    return true;
+}
 void actionSetDialsTo(int [int] dial_configuration)
 {
     updateLockTime();
@@ -3501,7 +3619,7 @@ void openLeftDrawer()
 {
 	if (__state.left_drawer_unlocked) return;
 	printSilent("Opening left drawer...");
-	if (__file_state["_out of clicks for the day"].to_boolean())
+	if (!haveClicksRemaining(1))
 	{
 		printSilent("Unable to open left drawer, out of clicks for the day.");
 		return;
@@ -3533,7 +3651,7 @@ void openRightDrawer()
 {
 	if (__state.right_drawer_unlocked) return;
 	printSilent("Opening right drawer...");
-	if (__file_state["_out of clicks for the day"].to_boolean())
+	if (!haveClicksRemaining(1))
 	{
 		printSilent("Unable to open right drawer, out of clicks for the day.");
 		return;
@@ -3565,7 +3683,7 @@ void unlockCrank()
 {
 	if (__state.crank_unlocked) return;
 	printSilent("Unlocking crank...");
-	if (__file_state["_out of clicks for the day"].to_boolean())
+	if (!haveClicksRemaining(1))
 	{
 		printSilent("Unable to unlock crank, out of clicks for the day.");
 		return;
@@ -3581,7 +3699,7 @@ void unlockMartiniHose()
 {
 	if (__state.martini_hose_unlocked) return;
 	printSilent("Unlocking martini hose...");
-	if (__file_state["_out of clicks for the day"].to_boolean())
+	if (!haveClicksRemaining(1))
 	{
 		printSilent("Unable to unlock martini hose, out of clicks for the day.");
 		return;
@@ -3598,7 +3716,7 @@ void unlockButtons()
 	//012-210 or XYZ-ZYX palindrome, press either actuator
 	if (__state.buttons_unlocked) return;
 	printSilent("Unlocking buttons...");
-	if (__file_state["_out of clicks for the day"].to_boolean())
+	if (!haveClicksRemaining(1))
 	{
 		printSilent("Unable to unlock buttons, out of clicks for the day.");
 		return;
@@ -3694,7 +3812,7 @@ void lightSecondLight()
 	boolean left_side_solved = false;
 	boolean right_side_solved = false;
 	int breakout = 111;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && __state.horizontal_light_states[2] != LIGHT_STATE_ON && breakout > 0)
+	while (haveClicksRemaining(1) && __state.horizontal_light_states[2] != LIGHT_STATE_ON && breakout > 0)
 	{
 		breakout -= 1;
 		//Calculate remaining possible choices:
@@ -3868,7 +3986,7 @@ void lightSecondLight()
 		else
 			actionPressRightActuator();
 	}
-	if (__state.horizontal_light_states[2] != LIGHT_STATE_ON && __file_state["_out of clicks for the day"].to_boolean())
+	if (__state.horizontal_light_states[2] != LIGHT_STATE_ON && !haveClicksRemaining(1))
 	{
 		printSilent("Can't solve yet, out of clicks for the day.");
 	}
@@ -4247,6 +4365,7 @@ void outputHelp()
 	printSilent("<strong>drawers</strong> or <strong>left</strong> or <strong>right</strong> - unlocks all/left/right drawers");
 	printSilent("<strong>hose</strong> - unlocks martini hose");
 	printSilent("<strong>drink</strong> or <strong>collect</strong> - acquires three splendid martinis and other dailies");
+	printSilent("<strong>reserve</strong> - reserves clicks to reach +adventures at the end of the day");
 	printSilent("");
     printSilent("Unimportant commands:");
 	printSilent("<strong>charge</strong> - charges flywheel (most commands do this automatically)");
@@ -4307,7 +4426,7 @@ int [int] discoverTabPermutation(boolean allow_actions, boolean only_try_once)
 	actionSetHandleTo(true);
 	int breakout = 111;
     boolean trying_negative = false;
-	while (__file_state["tab permutation"] == "" && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+	while (__file_state["tab permutation"] == "" && haveClicksRemaining(1) && breakout > 0)
 	{
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
@@ -4383,7 +4502,7 @@ int discoverButtonWithFunctionID(int function_id, boolean private_is_rescursing,
 	int value_wanted = __button_functions[function_id];
 	
 	int breakout = 23;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+	while (haveClicksRemaining(1) && breakout > 0)
 	{
 		breakout -= 1;
 		boolean [int][int] valid_button_functions = calculateTabs();
@@ -4456,7 +4575,7 @@ void setTabsToNumber(int desired_base_ten_number, boolean only_press_once, boole
 	actionSetHandleTo(true);
     printSilent("Setting tabs to number " + desired_base_ten_number + "...", "gray");
 	int breakout = 111;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+	while (haveClicksRemaining(1) && breakout > 0)
 	{
 		breakout -= 1;
 		int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
@@ -4664,7 +4783,7 @@ void lightThirdLight(boolean try_to_reach_moving_tabs_regardless)
 		discoverButtonWithFunctionID(function_id);
 	
 	int breakout = 111;
-	while (!__file_state["_out of clicks for the day"].to_boolean() && (__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && breakout > 0)
+	while (haveClicksRemaining(1) && (__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && breakout > 0)
 	{
 		breakout -= 1;
 		int [int] possible_lightrings_values = calculatePossibleLightringsValues(true, true);
@@ -4692,7 +4811,7 @@ void lightThirdLight(boolean try_to_reach_moving_tabs_regardless)
         }
 		setTabsToNumber(picked_number, true);
 	}
-	if ((__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && __file_state["_out of clicks for the day"].to_boolean())
+	if ((__state.horizontal_light_states[3] != LIGHT_STATE_ON || (try_to_reach_moving_tabs_regardless && !testTabsAreMoving())) && !haveClicksRemaining(1))
 	{
 		printSilent("Can't solve yet, out of clicks for the day.");
 	}
@@ -4936,81 +5055,6 @@ void chargeAntennae()
 			break;
 	}
 }
-int [int] __briefcase_enchantments; //slot -> enchantment, in order
-void parseBriefcaseEnchantments()
-{
-	for i from 0 to 2
-		__briefcase_enchantments[i] = -1;
-    
-    //So, caching!
-    //If clicks haven't changed since last view, we probably are the same.
-    int clicks_used = get_property_int("_kgbClicksUsed");
-    if ((__file_state contains "_enhancements_cache_clicks_used") && __file_state["_enhancements_cache_clicks_used"].to_int() == clicks_used)
-    {
-        //Parse and return:
-        foreach key, value in __file_state["_enhancements_cache"].split_string(",")
-        {
-            __briefcase_enchantments[key] = value.to_int();
-        }
-        return;
-    }
-    
-	printSilent("Viewing briefcase enchantments.", "gray");
-	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
-	
-	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
-	foreach key, enchantment in enchantments
-	{
-		if (enchantment == "Weapon Damage +25%")
-			__briefcase_enchantments[0] = 0;
-		else if (enchantment == "Spell Damage +50%")
-			__briefcase_enchantments[0] = 1;
-		else if (enchantment == "+5 <font color=red>Hot Damage</font>")
-			__briefcase_enchantments[0] = 2;
-		else if (enchantment == "+10% chance of Critical Hit")
-			__briefcase_enchantments[0] = 3;
-		else if (enchantment == "+25% Combat Initiative")
-			__briefcase_enchantments[1] = 0;
-		else if (enchantment == "Damage Absorption +100")
-			__briefcase_enchantments[1] = 1;
-		else if (enchantment == "Superhuman Hot Resistance (+5)")
-			__briefcase_enchantments[1] = 2;
-		else if (enchantment == "Superhuman Cold Resistance (+5)")
-			__briefcase_enchantments[1] = 3;
-		else if (enchantment == "Superhuman Spooky Resistance (+5)")
-			__briefcase_enchantments[1] = 4;
-		else if (enchantment == "Superhuman Stench  Resistance (+5)") //that extra space is only for this enchantment
-			__briefcase_enchantments[1] = 5;
-		else if (enchantment == "Superhuman Sleaze Resistance (+5)")
-			__briefcase_enchantments[1] = 6;
-		else if (enchantment == "Regenerate 5-10 MP per Adventure")
-			__briefcase_enchantments[2] = 0;
-		else if (enchantment == "+5 Adventure(s) per day")
-			__briefcase_enchantments[2] = 1;
-		else if (enchantment == "+5 PvP Fight(s) per day")
-			__briefcase_enchantments[2] = 2;
-		else if (enchantment == "Monsters will be less attracted to you")
-			__briefcase_enchantments[2] = 3;
-		else if (enchantment == "Monsters will be more attracted to you")
-			__briefcase_enchantments[2] = 4;
-		else if (enchantment == "+25 to Monster Level")
-			__briefcase_enchantments[2] = 5;
-		else if (enchantment == "-3 MP to use Skills")
-			__briefcase_enchantments[2] = 6;
-	}
-	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
-	{
-		printSilent("__briefcase_enchantments = " + __briefcase_enchantments.to_json());
-		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents(", ", "and").entity_encode());
-	}
-    else
-    {
-        //Cache!
-        __file_state["_enhancements_cache_clicks_used"] = clicks_used;
-        __file_state["_enhancements_cache"] = __briefcase_enchantments.listJoinComponents(",");
-        writeFileState();
-    }
-}
 
 string decorateEnchantmentOutput(string word, int slot_id, int id)
 {
@@ -5123,7 +5167,7 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
                 continue;
             }
 		}
-		int [int] max_for_slot = {4, 7, 7};
+		int [int] max_enchantments_for_slot = {4, 7, 7};
 		int [int] base_button_for_slot = {1, 3, 5};
 		//printSilent("desired_slot_configuration = " + desired_slot_configuration.to_json());
 		foreach slot_id, id in desired_slot_configuration
@@ -5132,6 +5176,23 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 			int breakout = 8;
 			while (!__file_state["_out of clicks for the day"].to_boolean() && __briefcase_enchantments[slot_id] != id && breakout > 0)
 			{
+                if (slot_id == 2 && __file_state["_reserve for adventures"].to_boolean())
+                {
+                    int clicks_remaining = clampi(22 - get_property_int("_kgbClicksUsed"), 0, 22);
+                    //Are we getting closer to +adventures? If not, test against haveClicksRemaining(2).
+                    boolean moving_closer_to_adventures = false;
+                    int current_position_delta = enchantmentDeltaToAdventures(__briefcase_enchantments[2]);
+                    int target_position_delta = enchantmentDeltaToAdventures(id);
+                    if (target_position_delta < current_position_delta)
+                        moving_closer_to_adventures = true;
+                    print_html(moving_closer_to_adventures ? "moving closer to adventures" : "moving away from adventures");
+                    if (current_position_delta == 0 && !haveClicksRemaining(2))
+                        break;
+                    if (!moving_closer_to_adventures && !haveClicksRemaining(2))
+                        break;
+                }
+                else if (!haveClicksRemaining(1))
+                    break;
 				if (__briefcase_enchantments[slot_id] == -1)
 				{
 					abort("implement parsing this specific enchantment");
@@ -5141,14 +5202,14 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 				//Left, or right?
 				int delta_left = __briefcase_enchantments[slot_id] - id;
 				if (delta_left < 0)
-					delta_left += max_for_slot[slot_id];
-				if (delta_left >= max_for_slot[slot_id])
-					delta_left -= max_for_slot[slot_id];
+					delta_left += max_enchantments_for_slot[slot_id];
+				if (delta_left >= max_enchantments_for_slot[slot_id])
+					delta_left -= max_enchantments_for_slot[slot_id];
 				int delta_right = id - __briefcase_enchantments[slot_id];
 				if (delta_right < 0)
-					delta_right += max_for_slot[slot_id];
-				if (delta_right >= max_for_slot[slot_id])
-					delta_right -= max_for_slot[slot_id];
+					delta_right += max_enchantments_for_slot[slot_id];
+				if (delta_right >= max_enchantments_for_slot[slot_id])
+					delta_right -= max_enchantments_for_slot[slot_id];
 				//printSilent("delta_left = " + delta_left + ", delta_right = " + delta_right);
 				//note that I internally switched these around, so "left" and "right" really mean the opposite in terms of what's on the case
 				if (delta_left < delta_right)
@@ -5273,14 +5334,14 @@ void pressTab(int tab_id, int tab_length)
     //printSilent("Activating buff of tab " + tab_id + " of length " + tab_length);
     //We have to reach this tab state using the least clicks, then press the tab:
     int breakout = 111;
-    while (__state.tab_configuration[tab_id] != tab_length && breakout > 0 && !__file_state["_out of clicks for the day"].to_boolean())
+    while (__state.tab_configuration[tab_id] != tab_length && breakout > 0 && haveClicksRemaining(1))
     {
         breakout -= 1;
         boolean [int][int] tabs_known;
         int best_found_target_number = computeBestTargetNumberForTab(tab_id, tab_length, tabs_known, true);
         setTabsToNumber(best_found_target_number, true); //only press once, because if we discover the wrong button, maybe we'll find a new one...?
     }
-    if (__state.tab_configuration[tab_id] == tab_length)
+    if (__state.tab_configuration[tab_id] == tab_length && haveClicksRemaining(3))
     {
         actionPressTab(tab_id + 1);
         return;
@@ -5531,7 +5592,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
             //FIXME this part, where it's already identified
             //FIXME also don't re-do this if we already identified it earlier in another part of the loop
             int breakout = 35;
-			while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+			while (haveClicksRemaining(3) && breakout > 0)
             {
                 if (desired_buff.have_effect() >= starting_effect_count[desired_buff] + 50 * desired_buffs[desired_buff]) //we found it somehow, maybe the random tab
                     break;
@@ -5765,7 +5826,7 @@ void lightLastLights()
     int breakout = 111;
 	actionSetHandleTo(true);
     //We need to be target_lightrings_number + a bunch. Honestly, just press +100 until we're over that number, then refresh until we're down to the correct spot.
-    while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed && !__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+    while (convertTabConfigurationToBase10(__state.tab_configuration, tab_permutation) < starting_number_needed && haveClicksRemaining(1) && breakout > 0)
     {
         actionPressButton(discoverButtonWithFunctionID(5) + 1);
         breakout -= 1;
@@ -5842,10 +5903,10 @@ buffer executeCommandCore(string command, boolean from_relay)
             printSilent("You don't seem to own a briefcase.");
 		return out;
 	}
-    if (!get_property("svnUpdateOnLogin").to_boolean() && !from_relay)
+    /*if (!get_property("svnUpdateOnLogin").to_boolean() && !from_relay)
     {
         printSilent("Consider enabling Preferences>SVN>Update installed SVN projects on login; this script is changing often.");
-    }
+    }*/
 	//readFileState(); //done already
 	
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
@@ -5874,6 +5935,19 @@ buffer executeCommandCore(string command, boolean from_relay)
         string [string] blank;
         __file_state = blank;
         writeFileState();
+        return out;
+    }
+    if (command == "reserve")
+    {
+        boolean should_reserve = !__file_state["_reserve for adventures"].to_boolean();
+        __file_state["_reserve for adventures"] = should_reserve;
+        writeFileState();
+        if (should_reserve)
+        {
+            printSilent("Reserving clicks to reach +adventures.");
+        }
+        else
+            printSilent("No longer reserving clicks to reach +adventures.");
         return out;
     }
 	
@@ -6027,7 +6101,7 @@ buffer executeCommandCore(string command, boolean from_relay)
         {
             actionSetHandleTo(true);
             int breakout = 23;
-            while (!__file_state["_out of clicks for the day"].to_boolean() && breakout > 0)
+            while (haveClicksRemaining(1) && breakout > 0)
             {
                 //Press the -100 button over and over again:
                 if (__state.tab_configuration.count() == 6 && __state.tab_configuration[0] == 0 && __state.tab_configuration[1] == 0 && __state.tab_configuration[2] == 0 && __state.tab_configuration[3] == 0 && __state.tab_configuration[4] == 0 && __state.tab_configuration[5] == 0)
