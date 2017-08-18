@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.3";
+string __briefcase_version = "2.0.4";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -854,6 +854,19 @@ string [string] mapMake(string key1, string value1, string key2, string value2, 
 	result[key3] = value3;
 	result[key4] = value4;
 	result[key5] = value5;
+	return result;
+}
+
+
+string [string] mapMake(string key1, string value1, string key2, string value2, string key3, string value3, string key4, string value4, string key5, string value5, string key6, string value6)
+{
+	string [string] result;
+	result[key1] = value1;
+	result[key2] = value2;
+	result[key3] = value3;
+	result[key4] = value4;
+	result[key5] = value5;
+	result[key6] = value6;
 	return result;
 }
 
@@ -2104,6 +2117,24 @@ boolean Vec2iValueInRange(Vec2i v, int value)
     if (value >= v.x && value <= v.y)
         return true;
     return false;
+}
+
+boolean Vec2iEquals(Vec2i a, Vec2i b)
+{
+    if (a.x != b.x) return false;
+    if (a.y != b.y) return false;
+    return true;
+}
+
+string Vec2iDescription(Vec2i v)
+{
+    buffer out;
+    out.append("[");
+    out.append(v.x);
+    out.append(", ");
+    out.append(v.y);
+    out.append("]");
+    return out.to_string();
 }
 
 record Vec2f
@@ -5318,6 +5349,14 @@ void outputBuffHelpLine(boolean [effect] buffs_know_about, Tab [effect] buffs_to
             line.append("active");
         else
             line.append(clicks_to_reach + " click" + (clicks_to_reach > 1 ? "s" : "") + " to reach");
+        
+        line.append(" - tab #" + (t.id + 1) + " ");
+        if (t.length == 2)
+            line.append("long");
+        else if (t.length == 1)
+            line.append("short");
+        else
+            line.append("unknown");
     }
     line.append(")");
     
