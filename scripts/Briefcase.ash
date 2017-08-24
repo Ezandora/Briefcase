@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.7";
+string __briefcase_version = "2.0.8";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -5915,7 +5915,7 @@ void collectOnceDailies()
         writeFileState();
     }
     //So, can we collect martinis?
-    if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_martini hose collected"].to_int() < 3)
+    if (__state.horizontal_light_states[3] != LIGHT_STATE_ON && __file_state["_martini hose collected"].to_int() < 3 && my_level() >= 6)
     {
         collectMartinis(MARTINI_TYPE_SPLENDID, false);
     }
