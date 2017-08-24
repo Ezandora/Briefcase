@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.6";
+string __briefcase_version = "2.0.7";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2990,7 +2990,8 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	
 	
 	//Parse results:
-	string results_string = page_text.group_string("<b>Results:</b></td></tr><tr><td style=\"padding: 5px; border: 1px solid blue;\"><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
+	//string results_string = page_text.group_string("<b>Results:</b></td></tr><tr><td style=\"padding: 5px; border: 1px solid blue;\"><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
+    string results_string = page_text.group_string("<b>Results:</b></td></tr><tr><td[^>]*><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
 	
 	string [int] results = split_string(results_string, "<br>");
 	
@@ -5007,7 +5008,18 @@ void chargeFlywheel()
 	for i from 1 to 11
 	{
 		actionTurnCrank();
-		if (!__state.last_action_results["You turn the crank."])
+        
+        boolean crank_turning = false;
+		foreach result in __state.last_action_results
+		{
+			if (result.contains_text("You turn the crank."))
+			{
+				crank_turning = true;
+				break;
+			}
+		}
+        
+		if (!__state.last_action_results["You turn the crank."] && !crank_turning)
 		{
             printSilent("__state.last_action_results = " + __state.last_action_results.to_json());
 			abort("Internal error charging the flywheel.");
