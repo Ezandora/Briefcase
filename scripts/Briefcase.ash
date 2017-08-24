@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.5";
+string __briefcase_version = "2.0.6";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2135,6 +2135,22 @@ string Vec2iDescription(Vec2i v)
     out.append(v.y);
     out.append("]");
     return out.to_string();
+}
+
+Vec2i Vec2iIntersection(Vec2i a, Vec2i b)
+{
+    Vec2i result;
+    result.x = max(a.x, b.x);
+    result.y = min(a.y, b.y);
+    return result;
+}
+
+boolean Vec2iIntersectsWithVec2i(Vec2i a, Vec2i b)
+{
+    //Assumed [min, max]:
+    if (a.y < b.x) return false;
+    if (a.x > b.y) return false;
+    return true;
 }
 
 record Vec2f
@@ -4993,6 +5009,7 @@ void chargeFlywheel()
 		actionTurnCrank();
 		if (!__state.last_action_results["You turn the crank."])
 		{
+            printSilent("__state.last_action_results = " + __state.last_action_results.to_json());
 			abort("Internal error charging the flywheel.");
 			return;
 		}
