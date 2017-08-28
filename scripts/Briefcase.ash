@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.8";
+string __briefcase_version = "2.0.9";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2183,6 +2183,18 @@ boolean Vec2fValueInRange(Vec2f v, float value)
     if (value >= v.x && value <= v.y)
         return true;
     return false;
+}
+
+
+string Vec2fDescription(Vec2f v)
+{
+    buffer out;
+    out.append("[");
+    out.append(v.x);
+    out.append(", ");
+    out.append(v.y);
+    out.append("]");
+    return out.to_string();
 }
 
 
@@ -4390,6 +4402,7 @@ void outputHelp()
 	printSilent("<strong>identify</strong> - identifies the tab function of all six buttons");
 	printSilent("<strong>reset</strong> - resets the briefcase");
     printSilent("<strong>stop</strong> - stops moving tabs");
+    printSilent("<strong>buttons</strong> - unlocks buttons");
 }
 
 void outputStatus()
@@ -5214,7 +5227,7 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
                     int target_position_delta = enchantmentDeltaToAdventures(id);
                     if (target_position_delta < current_position_delta)
                         moving_closer_to_adventures = true;
-                    print_html(moving_closer_to_adventures ? "moving closer to adventures" : "moving away from adventures");
+                    //print_html(moving_closer_to_adventures ? "moving closer to adventures" : "moving away from adventures");
                     if (current_position_delta == 0 && !haveClicksRemaining(2))
                         break;
                     if (!moving_closer_to_adventures && !haveClicksRemaining(2))
@@ -6059,6 +6072,10 @@ buffer executeCommandCore(string command, boolean from_relay)
 		openRightDrawer();
 		unlockButtons();
 	}
+    if (command == "buttons")
+    {
+        unlockButtons();
+    }
 	if (command == "solve")
 	{
         if (!can_interact() && !from_relay)
