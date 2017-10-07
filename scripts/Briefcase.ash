@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.9";
+string __briefcase_version = "2.0.10";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1394,7 +1394,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.31";
+string __version = "1.4.32";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -2533,6 +2533,11 @@ boolean get_property_ascension(string property)
 element get_property_element(string property)
 {
     return get_property(property).to_element();
+}
+
+item get_property_item(string property)
+{
+    return get_property(property).to_item();
 }
 
 //Utlity:
@@ -5158,7 +5163,6 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
             outputStatus();
 		chargeFlywheel();
 		unlockButtons();
-		actionSetHandleTo(false);
 		int [int] desired_slot_configuration;
 		foreach key, word in words
 		{
@@ -5193,7 +5197,7 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 				desired_slot_configuration[2] = 0;
 			else if (word == "adventures" || word == "adventure" || word == "adv")
 				desired_slot_configuration[2] = 1;
-			else if (word == "fights" || word == "fites" || word == "fight" || word == "fite")
+			else if (word == "fights" || word == "fites" || word == "fight" || word == "fite" || word == "pvp")
 				desired_slot_configuration[2] = 2;
 			else if (word == "-combat" || word == "minuscombat")
 				desired_slot_configuration[2] = 3;
@@ -5254,6 +5258,7 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 					delta_right -= max_enchantments_for_slot[slot_id];
 				//printSilent("delta_left = " + delta_left + ", delta_right = " + delta_right);
 				//note that I internally switched these around, so "left" and "right" really mean the opposite in terms of what's on the case
+                actionSetHandleTo(false);
 				if (delta_left < delta_right)
 				{
 					//Go left:
@@ -5475,7 +5480,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
     buffer out;
 	string [int] words = command.split_string(" ");
 	
-	if (words.count() < 2)
+	if (words.count() < 2 || words[1].to_lower_case() == "help")
 	{
 		//What buffs do we know about?
 		boolean [effect] buffs_know_about;
@@ -5936,6 +5941,7 @@ void collectOnceDailies()
 
 buffer executeCommandCore(string command, boolean from_relay)
 {
+    boolean recognised_command = false;
     buffer out;
     if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
 	{
@@ -5953,6 +5959,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
 	{
+        recognised_command = true;
 		if (!__setting_output_help_before_main)
 		{
 			outputHelp();
@@ -5970,6 +5977,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	
 	if (command == "clear")
     {
+        recognised_command = true;
         boolean yes = user_confirm("Clear your tracking values? This should only be done if the script is erroring.");
         if (!yes)
             return out;
@@ -5981,6 +5989,7 @@ buffer executeCommandCore(string command, boolean from_relay)
     }
     if (command == "reserve")
     {
+        recognised_command = true;
         boolean should_reserve = !__file_state["_reserve for adventures"].to_boolean();
         __file_state["_reserve for adventures"] = should_reserve;
         writeFileState();
@@ -5998,29 +6007,36 @@ buffer executeCommandCore(string command, boolean from_relay)
 	
 	if (command == "status")
 	{
+        recognised_command = true;
 		outputStatus();
 		return out;
 	}
 	if (command == "discover")
+    {
+        recognised_command = true;
 		discoverTabPermutation(true);
+    }
 	
 	//Do things we should always do:
 	lightFirstLight();
 	
 	if (command == "charge" || command == "flywheel")
 	{
+        recognised_command = true;
 		chargeFlywheel();
 		printSilent("Done.");
 		return out;
 	}
 	if (command == "antennae" || command == "jacobs" || command == "ladder" || command == "jacob")
 	{
+        recognised_command = true;
 		chargeAntennae();
 		printSilent("Done.");
 		return out;
 	}
 	if (command == "reset")
 	{
+        recognised_command = true;
 		boolean yes = user_confirm("Reset the briefcase? Are you sure?");
 		if (!yes)
 			return out;
@@ -6035,11 +6051,13 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
 	if (command.stringHasPrefix("enchantment") || command.stringHasPrefix("e ") || command == "e")
 	{
+        recognised_command = true;
 		return handleEnchantmentCommand(command, from_relay);
 	}
 	
 	if (command.stringHasPrefix("buff") || command.stringHasPrefix("b ") || command == "b")
 	{
+        recognised_command = true;
         return handleBuffCommand(command, from_relay);
 	}
 	
@@ -6049,23 +6067,28 @@ buffer executeCommandCore(string command, boolean from_relay)
         outputStatus();
 	if (command == "hose")
 	{
+        recognised_command = true;
 		unlockMartiniHose();
 	}
 	if (command == "drawers")
 	{
+        recognised_command = true;
 		openLeftDrawer();
 		openRightDrawer();
 	}
 	if (command == "left")
 	{
+        recognised_command = true;
 		openLeftDrawer();
 	}
 	if (command == "right")
 	{
+        recognised_command = true;
 		openRightDrawer();
 	}
 	if (command == "unlock" || command == "solve")
 	{
+        recognised_command = true;
 		unlockCrank();
 		unlockMartiniHose();
 		openLeftDrawer();
@@ -6074,10 +6097,12 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
     if (command == "buttons")
     {
+        recognised_command = true;
         unlockButtons();
     }
 	if (command == "solve")
 	{
+        recognised_command = true;
         if (!can_interact() && !from_relay)
         {
             boolean yes = user_confirm("Are you sure you want to solve the briefcase? You probably want \"unlock\" instead. Or maybe not.");
@@ -6090,27 +6115,33 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
 	if (command == "second" || command == "mastermind")
 	{
+        recognised_command = true;
 		lightSecondLight();
 	}
 	if (command == "third")
 	{
+        recognised_command = true;
 		lightThirdLight();
 	}
 	if (command == "splendid" || command == "epic" || command == "martini" || command == "martinis" || command == "booze" || command == "drink" || command == "drinks" || command == "collect" || command == "splendid martini")
 	{
+        recognised_command = true;
 		//Increment tabs to 222222, collect splendid martinis:
 		collectMartinis(MARTINI_TYPE_SPLENDID, true);
 	}
     if (command == "basic" || command == "basic martini")
     {
+        recognised_command = true;
         collectMartinis(MARTINI_TYPE_BASIC, true);
     }
     if (command == "improved" || command == "improved martini")
     {
+        recognised_command = true;
         collectMartinis(MARTINI_TYPE_IMPROVED, true);
     }
 	if (command == "identify")
 	{
+        recognised_command = true;
 		calculateTabs();
 		for function_id from 0 to 5
 			discoverButtonWithFunctionID(function_id);
@@ -6120,6 +6151,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
 	if (command.stringHasPrefix("tab"))
 	{
+        recognised_command = true;
 		int tab_to_click = command.split_string(" ")[1].to_int();
 		if (tab_to_click > 0 && tab_to_click <= 6)
 		{
@@ -6128,6 +6160,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
 	if (command.stringHasPrefix("button"))
 	{
+        recognised_command = true;
 		unlockButtons();
 		string [int] split_command = command.split_string(" ");
 		if (split_command.count() > 1)
@@ -6142,6 +6175,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
     if (command == "stop")
     {
+        recognised_command = true;
         boolean tabs_are_moving = testTabsAreMoving();
         if (tabs_are_moving)
         {
@@ -6167,10 +6201,12 @@ buffer executeCommandCore(string command, boolean from_relay)
 	//Internal:
     if (command == "discover_permutation")
     {
+        recognised_command = true;
         discoverTabPermutation(true);
     }
 	if (command == "handle")
 	{
+        recognised_command = true;
 		actionManipulateHandle();
 		if (__state.handle_up)
 			printSilent("Handle is now UP.");
@@ -6179,11 +6215,13 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
 	if (command == "test_dials")
 	{
+        recognised_command = true;
 		int [int] dial_configuration = {0, 1, 2, 2, 1, 0};
 		actionSetDialsTo(dial_configuration);
 	}
 	if (command == "test_tab_construction")
 	{
+        recognised_command = true;
 		for i from 1 to 6
 		{
 			for j from 0 to 2
@@ -6195,6 +6233,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 	}
     if (command == "test_tab_path")
     {
+        recognised_command = true;
         int current_number = convertTabConfigurationToBase10(__state.tab_configuration, stringToIntIntList(__file_state["tab permutation"]));
         foreach number in $ints[111, 727, 654, 719]
             printSilent("Path to " + number + ": " + computePathToNumber(number, current_number).listJoinComponents(", ") + " (length should be " + computePathLengthToNumber(number, current_number) + ")");
@@ -6202,7 +6241,12 @@ buffer executeCommandCore(string command, boolean from_relay)
 	
 	//After all that, do other stuff:
     collectOnceDailies();
-    print("Done.");
+    if (!recognised_command)
+    {
+        print("Unrecognised command \"" + command + "\", try again.", "red");
+    }
+    else
+        print("Done.");
     return out;
 }
 
