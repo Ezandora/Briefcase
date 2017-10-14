@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.0.10";
+string __briefcase_version = "2.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -3486,6 +3486,14 @@ boolean haveClicksRemaining(int clicks_needed)
         return false;
     return true;
 }
+
+int stateTabSum(BriefcaseState state)
+{
+    int sum = 0;
+    foreach tab_id in state.tab_configuration
+        sum += state.tab_configuration[tab_id];
+    return sum;
+}
 void actionSetDialsTo(int [int] dial_configuration)
 {
     updateLockTime();
@@ -5516,6 +5524,8 @@ buffer handleBuffCommand(string command, boolean from_relay)
         outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[muscle_absolute], $effect[Punch Another Day]);
         outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[myst_absolute], $effect[For Your Brain Only]);
         outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[moxie_absolute], $effect[Quantum of Moxie]);
+        printSilent("");
+        printSilent("<b>identify</b>: identify exactly one unknown tab");
         
         printSilent("");
         printSilent("The command \"briefcase buff item\" would spend clicks until we obtained the +50% item buff. \"briefcase buff meat\" would do the same for +meat.");
@@ -5550,6 +5560,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
         int [effect] desired_buffs;
         effect [int] desired_buffs_linear;
         boolean last_was_all = false;
+        boolean only_press_one_tab = false;
         for word_id from 1 to words.count() - 1
         {
             //Parse buff:
@@ -5577,6 +5588,24 @@ buffer handleBuffCommand(string command, boolean from_relay)
                 desired_buff = $effect[Thunderspell];
             else if (word == "moxie_percentage" || word == "moxie_per" || word == "goldentongue" || word == "moxie")
                 desired_buff = $effect[Goldentongue];
+            else if (word == "identify" || word == "one" || word == "single")
+            {
+                //pick a random buff:
+                for buff_id from 1 to 11
+                {
+                    if (__file_state["tab effect " + buff_id] == "")
+                    {
+                        desired_buff = __spy_buff_id_to_effect[buff_id];
+                        only_press_one_tab = true;
+                        break;
+                    }
+                }
+                if (desired_buff == $effect[none])
+                {
+                    printSilent("All tabs identified.");
+                    continue;
+                }
+            }
             else if (word == "all")
             {
                 last_was_all = true;
@@ -5688,6 +5717,8 @@ buffer handleBuffCommand(string command, boolean from_relay)
                 {
                     //press:
                     actionPressTab(chosen_tab + 1);
+                    if (only_press_one_tab)
+                        break;
                     continue;
                 }
                 
@@ -6285,17 +6316,27 @@ buffer generateFirstText()
         out2.append(HTMLGenerateTagPrefix("div", mapMake("style", "display:table;width:100%;")));
         out2.append(HTMLGenerateTagPrefix("div", mapMake("style", "display:table-row;")));
         
+        int tab_sum = __state.stateTabSum();
         //foreach s in $strings[Basic,Improved,Splendid]
-        boolean ezandora_is_too_lazy_to_write_improved_martini_code = false;
         for i from 0 to 2
         {
             int item_id = 9494 + i;
             item it = item_id.to_item();
             
+            boolean should_bold = false;
+            if (it == $item[basic martini] && tab_sum < 5)
+                should_bold = true;
+            else if (it == $item[improved martini] && tab_sum >= 6 && tab_sum < 11)
+                should_bold = true;
+            else if (it == $item[splendid martini] && tab_sum >= 11)
+                should_bold = true;
+            
             string description = "Mix " + it.plural;
             
             string style = "display:table-cell;width:33%;";
             style += "text-align:center;";
+            if (should_bold)
+                style += "font-weight:bold;";
             string command = it.to_string();
             
             int clicks = 0;
@@ -6313,6 +6354,8 @@ buffer generateFirstText()
                 clicks = 12;
                 //style += "text-align:left;";
             }
+            if (should_bold)
+                clicks = 0;
             if (!__state.martini_hose_unlocked)
                 clicks += 1;
             if (clicks > 0)
@@ -6326,13 +6369,7 @@ buffer generateFirstText()
             }
             
             
-            if (ezandora_is_too_lazy_to_write_improved_martini_code && it == $item[improved martini])
-            {
-                out2.append(HTMLGenerateTagPrefix("div", mapMake("style", style)));
-                description = "[to be written]";
-            }
-            else
-                out2.append(HTMLGenerateTagPrefix("div", mapMake("style", style, "class", "briefcase_entry briefcase_button", "onclick", "executeBriefcaseCommand('" + command + "');")));
+            out2.append(HTMLGenerateTagPrefix("div", mapMake("style", style, "class", "briefcase_entry briefcase_button", "onclick", "executeBriefcaseCommand('" + command + "');")));
             //out2.append(it.replace_string(" martini", ""));
             out2.append(description);
             out2.append("</div>"); //cell
@@ -6533,6 +6570,23 @@ buffer generateBuffText()
     foreach s in $strings[muscle_absolute,myst_absolute,moxie_absolute]
         buffs_commands[2].listAppend(s);
     
+    boolean has_unidentified_effect = false;
+    
+    for buff_id from 1 to 11
+    {
+        if (__file_state["tab effect " + buff_id] == "")
+        {
+            has_unidentified_effect = true;
+            break;
+        }
+    }
+    if (has_unidentified_effect)
+    {
+        buffs_description[2].listAppend("Identify One Effect");
+        buffs_images[2].listAppend("confused.gif");
+        buffs_commands[2].listAppend("identify");
+    }
+    
     int identified_tabs_count = 0;
     for buff_id from 0 to 11
     {
@@ -6629,7 +6683,7 @@ buffer generateBuffText()
             {
                 line.append(buffs_description[slot_id][fake_id]);
             }
-            out.append(HTMLGenerateTagWrap("div", line, mapMake("class", "briefcase_entry briefcase_button", "style", button_style, "onclick", "executeBriefcaseCommand('buff " + command + "');")));
+            out.append(HTMLGenerateTagWrap("div", line, mapMake("class", "briefcase_entry briefcase_button", "style", button_style, "onclick", "executeBriefcaseCommand('buff " + command + "');", "title", command)));
             
         }
         out.append("</div>"); //cell
