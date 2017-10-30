@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1";
+string __briefcase_version = "2.1.1";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -563,6 +563,64 @@ skill [int] listMake(skill e1, skill e2, skill e3, skill e4, skill e5)
 	result.listAppend(e3);
 	result.listAppend(e4);
 	result.listAppend(e5);
+	return result;
+}
+
+
+monster [int] listMake(monster e1)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	return result;
+}
+
+monster [int] listMake(monster e1, monster e2)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	return result;
+}
+
+monster [int] listMake(monster e1, monster e2, monster e3)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	return result;
+}
+
+monster [int] listMake(monster e1, monster e2, monster e3, monster e4)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	return result;
+}
+
+monster [int] listMake(monster e1, monster e2, monster e3, monster e4, monster e5)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	return result;
+}
+
+monster [int] listMake(monster e1, monster e2, monster e3, monster e4, monster e5, monster e6)
+{
+	monster [int] result;
+	result.listAppend(e1);
+	result.listAppend(e2);
+	result.listAppend(e3);
+	result.listAppend(e4);
+	result.listAppend(e5);
+	result.listAppend(e6);
 	return result;
 }
 
@@ -3394,11 +3452,14 @@ void parseBriefcaseEnchantments()
 	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
 	foreach key, enchantment in enchantments
 	{
+		//Strip out HTML:
+		enchantment = create_matcher("<[^>]*>", enchantment).replace_all("");
+  		//printSilent("enchantment = \"" + enchantment.entity_encode() + "\"");
 		if (enchantment == "Weapon Damage +25%")
 			__briefcase_enchantments[0] = 0;
 		else if (enchantment == "Spell Damage +50%")
 			__briefcase_enchantments[0] = 1;
-		else if (enchantment == "+5 <font color=red>Hot Damage</font>")
+  		else if (enchantment == "+5 Hot Damage") //else if (enchantment == "+5 <font color=red>Hot Damage</font>")
 			__briefcase_enchantments[0] = 2;
 		else if (enchantment == "+10% chance of Critical Hit")
 			__briefcase_enchantments[0] = 3;
@@ -3434,7 +3495,7 @@ void parseBriefcaseEnchantments()
 	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
 	{
 		printSilent("__briefcase_enchantments = " + __briefcase_enchantments.to_json());
-		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents(", ", "and").entity_encode());
+		printSilent("Unparsed briefcase enchantments: " + enchantments.listJoinComponents("|").entity_encode());
 	}
     else
     {
@@ -6683,7 +6744,7 @@ buffer generateBuffText()
             {
                 line.append(buffs_description[slot_id][fake_id]);
             }
-            out.append(HTMLGenerateTagWrap("div", line, mapMake("class", "briefcase_entry briefcase_button", "style", button_style, "onclick", "executeBriefcaseCommand('buff " + command + "');", "title", command)));
+            out.append(HTMLGenerateTagWrap("div", line, mapMake("class", "briefcase_entry briefcase_button", "style", button_style, "onclick", "executeBriefcaseCommand('buff " + command + "');")));
             
         }
         out.append("</div>"); //cell
