@@ -3455,41 +3455,41 @@ void parseBriefcaseEnchantments()
 		//Strip out HTML:
 		enchantment = create_matcher("<[^>]*>", enchantment).replace_all("");
   		//printSilent("enchantment = \"" + enchantment.entity_encode() + "\"");
-		if (enchantment == "Weapon Damage +25%")
+		if (contains_text(enchantment,"Weapon Damage +25%"))
 			__briefcase_enchantments[0] = 0;
-		else if (enchantment == "Spell Damage +50%")
+		else if (contains_text(enchantment,"Spell Damage +50%"))
 			__briefcase_enchantments[0] = 1;
-  		else if (enchantment == "+5 Hot Damage") //else if (enchantment == "+5 <font color=red>Hot Damage</font>")
+  		else if (contains_text(enchantment,"+5 Hot Damage")) 
 			__briefcase_enchantments[0] = 2;
-		else if (enchantment == "+10% chance of Critical Hit")
+		else if (contains_text(enchantment,"+10% chance of Critical Hit"))
 			__briefcase_enchantments[0] = 3;
-		else if (enchantment == "+25% Combat Initiative")
+		else if (contains_text(enchantment,"+25% Combat Initiative"))
 			__briefcase_enchantments[1] = 0;
-		else if (enchantment == "Damage Absorption +100")
+		else if (contains_text(enchantment,"Damage Absorption +100"))
 			__briefcase_enchantments[1] = 1;
-		else if (enchantment == "Superhuman Hot Resistance (+5)")
+		else if (contains_text(enchantment,"Superhuman Hot Resistance (+5)"))
 			__briefcase_enchantments[1] = 2;
-		else if (enchantment == "Superhuman Cold Resistance (+5)")
+		else if (contains_text(enchantment,"Superhuman Cold Resistance (+5)"))
 			__briefcase_enchantments[1] = 3;
-		else if (enchantment == "Superhuman Spooky Resistance (+5)")
+		else if (contains_text(enchantment,"Superhuman Spooky Resistance (+5)"))
 			__briefcase_enchantments[1] = 4;
-		else if (enchantment == "Superhuman Stench  Resistance (+5)") //that extra space is only for this enchantment
+		else if (contains_text(enchantment,"Superhuman Stench  Resistance (+5)")) //that extra space is only for this enchantment
 			__briefcase_enchantments[1] = 5;
-		else if (enchantment == "Superhuman Sleaze Resistance (+5)")
+		else if (contains_text(enchantment,"Superhuman Sleaze Resistance (+5)"))
 			__briefcase_enchantments[1] = 6;
-		else if (enchantment == "Regenerate 5-10 MP per Adventure")
+		else if (contains_text(enchantment,"Regenerate 5-10 MP per Adventure"))
 			__briefcase_enchantments[2] = 0;
-		else if (enchantment == "+5 Adventure(s) per day")
+		else if (contains_text(enchantment,"+5 Adventure(s) per day"))
 			__briefcase_enchantments[2] = 1;
-		else if (enchantment == "+5 PvP Fight(s) per day")
+		else if (contains_text(enchantment,"+5 PvP Fight(s) per day"))
 			__briefcase_enchantments[2] = 2;
-		else if (enchantment == "Monsters will be less attracted to you")
+		else if (contains_text(enchantment,"Monsters will be less attracted to you"))
 			__briefcase_enchantments[2] = 3;
-		else if (enchantment == "Monsters will be more attracted to you")
+		else if (contains_text(enchantment,"Monsters will be more attracted to you"))
 			__briefcase_enchantments[2] = 4;
-		else if (enchantment == "+25 to Monster Level")
+		else if (contains_text(enchantment,"+25 to Monster Level"))
 			__briefcase_enchantments[2] = 5;
-		else if (enchantment == "-3 MP to use Skills")
+		else if (contains_text(enchantment,"-3 MP to use Skills"))
 			__briefcase_enchantments[2] = 6;
 	}
 	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
