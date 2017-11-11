@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.1";
+string __briefcase_version = "2.1.2";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -3449,47 +3449,49 @@ void parseBriefcaseEnchantments()
 	printSilent("Viewing briefcase enchantments.", "gray");
 	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
 	
+	//supposedly breaks:
+	//page_text = to_buffer("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"    \"http://www.w3.org/TR/html4/loose.dtd\"><html><head><title>Item Description</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/images/styles.css\"><style>a.hand {    cursor: pointer;}</style><script language=Javascript src=\"/images/scripts/keybinds.min.2.js\"></script><script language=Javascript src=\"/images/scripts/window.20111231.js\"></script><script language=\"Javascript\" src=\"/basics.js\"></script><link rel=\"stylesheet\" href=\"/basics.1.css\" /></head><body><div id=\"description\" class=small><center><img src=\"/images/itemimages/kgbcase.gif\" height=30 width=30 alt=\"kgbcase\"><br><b>Kremlin's Greatest Briefcase</b></center><p><blockquote>This old-fashioned (and heavy) leather briefcase has a post-it note stuck to the side: \"Agent: this briefcase was confiscated from a member of an opposing organization. You are instructed to investigate its capabilities & take advantage of them if possible. --L\"<!-- itemid: 9493 --><br><br>Type: <b>accessory</b><Br>Cannot be traded or discarded<p><center><b><font color=blue>All Attributes +10<br>Maximum HP/MP +25<br><font color=\"blue\">Weapon Damage +25%<br>Damage Absorption +100<br>+5 Adventure(s) per day</font><br>Lets you banish enemy agents with tranquilizer darts</font></b></center><br><b>NOTE:</b> You may not equip more than one of these at a time.</blockquote><script type=\"text/javascript\"><!--var resizetries = 0;var fsckinresize;setTimeout(fsckinresize = function ()  {    var desch = document.getElementById('description').offsetHeight;    if (desch < 100 && resizetries < 5) {        setTimeout(fsckinresize, 100);        resizetries++;    }    if (desch < 100) desch = 200;     //alert('resizing on try #' + resizetries);    if (self.resizeTo && window.outerHeight) {         self.resizeTo(400, desch + (window.outerHeight - window.innerHeight) + 50);     }    else if (self.resizeTo ) { self.resizeTo(400, desch+130); }    else { window.innerHeight = newh; }}, 100);//--></script></div></body><script src=\"/onfocus.1.js\"></script></html>");
 	string [int] enchantments = page_text.group_string("<font color=blue>(.*?)</font></b></center>")[0][1].split_string("<br>");
 	foreach key, enchantment in enchantments
 	{
 		//Strip out HTML:
 		enchantment = create_matcher("<[^>]*>", enchantment).replace_all("");
   		//printSilent("enchantment = \"" + enchantment.entity_encode() + "\"");
-		if (enchantment == "Weapon Damage +25%")
+		if (enchantment.contains_text("Weapon Damage +25%"))
 			__briefcase_enchantments[0] = 0;
-		else if (enchantment == "Spell Damage +50%")
+		else if (enchantment.contains_text("Spell Damage +50%"))
 			__briefcase_enchantments[0] = 1;
-  		else if (enchantment == "+5 Hot Damage") //else if (enchantment == "+5 <font color=red>Hot Damage</font>")
+  		else if (enchantment.contains_text("+5 Hot Damage")) //else if (enchantment.contains_text("+5 <font color=red>Hot Damage</font>")
 			__briefcase_enchantments[0] = 2;
-		else if (enchantment == "+10% chance of Critical Hit")
+		else if (enchantment.contains_text("+10% chance of Critical Hit"))
 			__briefcase_enchantments[0] = 3;
-		else if (enchantment == "+25% Combat Initiative")
+		else if (enchantment.contains_text("+25% Combat Initiative"))
 			__briefcase_enchantments[1] = 0;
-		else if (enchantment == "Damage Absorption +100")
+		else if (enchantment.contains_text("Damage Absorption +100"))
 			__briefcase_enchantments[1] = 1;
-		else if (enchantment == "Superhuman Hot Resistance (+5)")
+		else if (enchantment.contains_text("Superhuman Hot Resistance (+5)"))
 			__briefcase_enchantments[1] = 2;
-		else if (enchantment == "Superhuman Cold Resistance (+5)")
+		else if (enchantment.contains_text("Superhuman Cold Resistance (+5)"))
 			__briefcase_enchantments[1] = 3;
-		else if (enchantment == "Superhuman Spooky Resistance (+5)")
+		else if (enchantment.contains_text("Superhuman Spooky Resistance (+5)"))
 			__briefcase_enchantments[1] = 4;
-		else if (enchantment == "Superhuman Stench  Resistance (+5)") //that extra space is only for this enchantment
+		else if (enchantment.contains_text("Superhuman Stench  Resistance (+5)")) //that extra space is only for this enchantment
 			__briefcase_enchantments[1] = 5;
-		else if (enchantment == "Superhuman Sleaze Resistance (+5)")
+		else if (enchantment.contains_text("Superhuman Sleaze Resistance (+5)"))
 			__briefcase_enchantments[1] = 6;
-		else if (enchantment == "Regenerate 5-10 MP per Adventure")
+		else if (enchantment.contains_text("Regenerate 5-10 MP per Adventure"))
 			__briefcase_enchantments[2] = 0;
-		else if (enchantment == "+5 Adventure(s) per day")
+		else if (enchantment.contains_text("+5 Adventure(s) per day"))
 			__briefcase_enchantments[2] = 1;
-		else if (enchantment == "+5 PvP Fight(s) per day")
+		else if (enchantment.contains_text("+5 PvP Fight(s) per day"))
 			__briefcase_enchantments[2] = 2;
-		else if (enchantment == "Monsters will be less attracted to you")
+		else if (enchantment.contains_text("Monsters will be less attracted to you"))
 			__briefcase_enchantments[2] = 3;
-		else if (enchantment == "Monsters will be more attracted to you")
+		else if (enchantment.contains_text("Monsters will be more attracted to you"))
 			__briefcase_enchantments[2] = 4;
-		else if (enchantment == "+25 to Monster Level")
+		else if (enchantment.contains_text("+25 to Monster Level"))
 			__briefcase_enchantments[2] = 5;
-		else if (enchantment == "-3 MP to use Skills")
+		else if (enchantment.contains_text("-3 MP to use Skills"))
 			__briefcase_enchantments[2] = 6;
 	}
 	if (__briefcase_enchantments[0] == -1 || __briefcase_enchantments[1] == -1 || __briefcase_enchantments[2] == -1)
