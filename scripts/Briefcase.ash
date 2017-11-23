@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.3";
+string __briefcase_version = "2.1.4";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2832,6 +2832,8 @@ int [int] __button_functions = {-1, 1, -10, 10, -100, 100};
 
 Record BriefcaseState
 {
+	boolean briefcase_available;
+	
 	int [int] dial_configuration; //0 to 5
 	int [int] horizontal_light_states; //1 to 6
 	int [int] tab_configuration; //1 to 6
@@ -3014,6 +3016,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	//Intruder alert! Red spy is in the base!
 	//Protect the briefcase!
 	
+	state.briefcase_available = page_text.contains_text("Kremlin's Greatest Briefcase");
 	for dial_id from 1 to 6
 	{
 		string [int][int] matches = page_text.group_string("href=place.php.whichplace=kgb&action=kgb_dial" + dial_id + "><img src=\".*?/otherimages/kgb/char(.).gif\"");
@@ -6047,7 +6050,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 {
     boolean recognised_command = false;
     buffer out;
-    if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() + $item[kremlin's greatest briefcase].storage_amount() == 0) //'
+    if ($item[kremlin's greatest briefcase].available_amount() + $item[kremlin's greatest briefcase].equipped_amount() + $item[kremlin's greatest briefcase].storage_amount() == 0) //'
 	{
         if (from_relay)
             out.append("You don't seem to own a briefcase.");
@@ -6478,8 +6481,9 @@ buffer generateFirstText()
 buffer generateEnchantmentText()
 {
     int clicks_remaining = clampi(22 - get_property_int("_kgbClicksUsed"), 0, 22);
-    
     buffer out;
+    if ($item[kremlin's greatest briefcase].available_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //can't enchant what we can't have
+        return out;
     out.append(HTMLGenerateTagWrap("div", "Enchantments", mapMake("style", "font-size:1.5em;", "class", "r_centre")));
     //out.append(HTMLGenerateTagWrap("div", "1 click per rotation", mapMake("style", "color:" + __setting_light_colour + ";", "class", "r_centre")));
     out.append("<br>");
@@ -6806,8 +6810,10 @@ buffer generatePageText(boolean body_only)
     core.append(HTMLGenerateTagSuffix("div"));*/
     core.append(generateFirstText());
     //core.append("<hr>");
-    core.append(generateEnchantmentText());
-    core.append("<hr>");
+    buffer enchantment_text = generateEnchantmentText();
+    core.append(enchantment_text);
+    if (enchantment_text.length() != 0)
+	    core.append("<hr>");
     core.append(generateBuffText());
     core.append("<hr>");
     core.append(HTMLGenerateTagWrap("div", "Disable GUI", mapMake("class", "r_centre briefcase_entry briefcase_button", "onclick", "disableGUI();")));
@@ -6932,6 +6938,11 @@ void relayScriptMain()
         return;
     }
     actionVisitBriefcase(true);
+    if (!__state.briefcase_available)
+    {
+    	write(visit_url());
+     	return;   
+    }
     if (!lockIsUsedBySomeoneElse())
     {
         gainActionLock();
