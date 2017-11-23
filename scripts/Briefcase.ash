@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.2";
+string __briefcase_version = "2.1.3";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2242,6 +2242,16 @@ boolean Vec2fValueInRange(Vec2f v, float value)
         return true;
     return false;
 }
+
+Vec2f Vec2fMultiply(Vec2f v, float c)
+{
+	return Vec2fMake(v.x * c, v.y * c);
+}
+Vec2f Vec2fAdd(Vec2f v, float c)
+{
+    return Vec2fMake(v.x + c, v.y + c);
+}
+
 
 
 string Vec2fDescription(Vec2f v)
@@ -6037,7 +6047,7 @@ buffer executeCommandCore(string command, boolean from_relay)
 {
     boolean recognised_command = false;
     buffer out;
-    if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() == 0) //'
+    if ($item[kremlin's greatest briefcase].item_amount() + $item[kremlin's greatest briefcase].equipped_amount() + $item[kremlin's greatest briefcase].storage_amount() == 0) //'
 	{
         if (from_relay)
             out.append("You don't seem to own a briefcase.");
