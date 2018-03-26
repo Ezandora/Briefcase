@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.4";
+string __briefcase_version = "2.1.5";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -274,6 +274,14 @@ void listPrepend(location [int] list, location entry)
 	while (list contains position)
 		position -= 1;
 	list[position] = entry;
+}
+
+void listPrepend(item [int] list, item entry)
+{
+    int position = 0;
+    while (list contains position)
+        position -= 1;
+    list[position] = entry;
 }
 
 
@@ -1452,7 +1460,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.32";
+string __version = "1.4.33";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -5602,6 +5610,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
         outputBuffHelpLine(buffs_know_about, buffs_to_tabs, tabs_known, $strings[moxie_absolute], $effect[Quantum of Moxie]);
         printSilent("");
         printSilent("<b>identify</b>: identify exactly one unknown tab");
+        printSilent("<b>random</b>: random buff (10 turns, 1 click)");
         
         printSilent("");
         printSilent("The command \"briefcase buff item\" would spend clicks until we obtained the +50% item buff. \"briefcase buff meat\" would do the same for +meat.");
@@ -5633,6 +5642,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
         {
             starting_effect_count[e] = e.have_effect();
         }
+        boolean forget_about_desired_buffs = false;
         int [effect] desired_buffs;
         effect [int] desired_buffs_linear;
         boolean last_was_all = false;
@@ -5673,6 +5683,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
                     {
                         desired_buff = __spy_buff_id_to_effect[buff_id];
                         only_press_one_tab = true;
+                        forget_about_desired_buffs = true;
                         break;
                     }
                 }
@@ -5681,6 +5692,11 @@ buffer handleBuffCommand(string command, boolean from_relay)
                     printSilent("All tabs identified.");
                     continue;
                 }
+            }
+            else if (word == "random")
+            {
+            	actionPressLeftActuator();
+                continue;
             }
             else if (word == "all")
             {
@@ -5916,10 +5932,13 @@ buffer handleBuffCommand(string command, boolean from_relay)
                 delta_effects[e] = delta;
         }
         string [int] buffs_gained_description;
-        foreach e in desired_buffs
+        foreach e in __spy_effect_to_buff_id
         {
             if (delta_effects[e] == 0)
-                out.append(HTMLGenerateSpanFont("Unable to gain buff " + e + ".", "red"));
+            {
+            	if ((desired_buffs contains e) && !forget_about_desired_buffs)
+	                out.append(HTMLGenerateSpanFont("Unable to gain buff " + e + ".", "red"));
+            }
             else
                 buffs_gained_description.listAppend(e + " (" + delta_effects[e] + " turns)");
         }
@@ -6608,11 +6627,14 @@ buffer generateBuffText()
     string [int][int] buffs_images;
     effect [int][int] buffs_effects;
     string [int][int] buffs_commands;
+    string [int][int] buff_click_count_override;
+    boolean [int][int] buff_within_configuration_override;
     for slot_id from 0 to 2
     {
         buffs_description[slot_id] = listMakeBlankString();
         buffs_images[slot_id] = listMakeBlankString();
         buffs_commands[slot_id] = listMakeBlankString();
+        buff_click_count_override[slot_id] = listMakeBlankString();
         effect [int] blank;
         buffs_effects[slot_id] = blank;
     }
@@ -6659,9 +6681,39 @@ buffer generateBuffText()
     }
     if (has_unidentified_effect)
     {
+    	int open_tabs = 0;
+        int known_tabs = 0;
+        foreach tab_id in __state.tab_configuration
+        {
+        	if (__state.tab_configuration[tab_id] > 0)
+         	   open_tabs += 1;
+        }
+        //foreach buff_effect, buff_id in __spy_effect_to_buff_id
+        for buff_id from 0 to 11
+        {
+            boolean known = (__file_state["tab effect " + buff_id] != "");
+            Tab t = TabFromFileBuff(buff_id);
+        	boolean within_configuration = known && (__state.tab_configuration[t.id] == t.length);
+            if (within_configuration)
+            	known_tabs += 1;
+        }
+        //print_html("open_tabs = " + open_tabs + ", known_tabs = " + known_tabs);
         buffs_description[2].listAppend("Identify One Effect");
         buffs_images[2].listAppend("confused.gif");
         buffs_commands[2].listAppend("identify");
+        buff_click_count_override[2][buffs_commands[2].count() - 1] = (open_tabs > known_tabs ? "3" : "~6");
+        buff_within_configuration_override[2][buffs_commands[2].count() - 1] = true;
+    }
+    if (true)
+    {
+    	int slot_id = 1;
+        if (!has_unidentified_effect)
+        	slot_id = 2;
+        buffs_description[slot_id].listAppend("Random Effect<br><span class=\"briefcase_subtext\" style=\"font-weight:normal;\">10 turns</span>");
+        buffs_images[slot_id].listAppend("confused.gif");
+        buffs_commands[slot_id].listAppend("random");
+        buff_click_count_override[slot_id][buffs_commands[slot_id].count() - 1] = 1;
+        buff_within_configuration_override[slot_id][buffs_commands[slot_id].count() - 1] = true;
     }
     
     int identified_tabs_count = 0;
@@ -6686,8 +6738,13 @@ buffer generateBuffText()
             
             boolean known = (__file_state["tab effect " + buff_id] != "");
             Tab t = TabFromFileBuff(buff_id);
-            
             boolean within_configuration = known && (__state.tab_configuration[t.id] == t.length);
+            if (buff_within_configuration_override[slot_id][fake_id])
+            {
+                known = true;
+                within_configuration = true;
+            }
+            
             string button_style;
             if (!known)
                 button_style += "color:" + __setting_light_colour + ";";
@@ -6737,6 +6794,8 @@ buffer generateBuffText()
                 string clicks_using_string = clicks_using;
                 if (is_estimate)
                     clicks_using_string = "~" + clicks_using;
+                if (buff_click_count_override[slot_id] contains fake_id)
+                	clicks_using_string = buff_click_count_override[slot_id][fake_id]; 
                 line.append(HTMLGenerateSpanOfClass(" (" + clicks_using_string + ")", "briefcase_subtext"));
                 
                 string [int] secondary_line;
