@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.5";
+string __briefcase_version = "2.1.6";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1460,7 +1460,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.33";
+string __version = "1.4.35a1";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -2258,6 +2258,10 @@ Vec2f Vec2fMultiply(Vec2f v, float c)
 Vec2f Vec2fAdd(Vec2f v, float c)
 {
     return Vec2fMake(v.x + c, v.y + c);
+}
+float Vec2fAverage(Vec2f v)
+{
+    return (v.x + v.y) * 0.5;
 }
 
 
@@ -5207,6 +5211,37 @@ string decorateEnchantmentOutput(string word, int slot_id, int id)
 	return output;
 }
 
+static
+{
+	string [int][int] __briefcase_enchantments_to_descriptions;
+}
+
+void initialiseBriefcaseEnchantmentDescriptions()
+{
+	if (__briefcase_enchantments_to_descriptions.count() > 0) return;
+    for i from 0 to 2
+    {
+        __briefcase_enchantments_to_descriptions[i] = listMakeBlankString();
+    }
+    foreach s in $strings[+25% Weapon Damage,+50% Spell Damage,+5 Prismatic Damage,+10% Critical Hit]
+    	__briefcase_enchantments_to_descriptions[0].listAppend(s);
+    foreach s in $strings[+25% init,+100 Damage Absorption,+5 Hot res,+5 Cold res,+5 Spooky res,+5 Stench res,+5 Sleaze res]
+        __briefcase_enchantments_to_descriptions[1].listAppend(s);
+    foreach s in $strings[+5-10 HP/MP regen,+5 adventures/day,+5 PvP fights/day,-5% combat,+5% combat,+25 ML,-3MP to use skills]
+        __briefcase_enchantments_to_descriptions[2].listAppend(s);
+}
+initialiseBriefcaseEnchantmentDescriptions();
+
+void outputBriefcaseEnchantments()
+{
+	string [int] enchantments;
+	foreach s, enchantment in __briefcase_enchantments
+	{
+		enchantments.listAppend(__briefcase_enchantments_to_descriptions[s][enchantment]);
+	}
+	printSilent("<strong>Current enchantments:</strong> " + enchantments.listJoinComponents(" / "));
+}
+
 buffer handleEnchantmentCommand(string command, boolean from_relay)
 {
     buffer out;
@@ -5241,6 +5276,8 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 		printSilent("");
 		printSilent("The command \"briefcase enchantment prismatic init adventures\" would give your briefcase +5 prismatic damage, +25% init, and +5 adventures/day.");
 		printSilent("\"briefcase e -combat\" would give it -combat.");
+        printSilent("");
+        outputBriefcaseEnchantments();
 	}
 	else
 	{
@@ -5373,6 +5410,8 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
             }
 		}
 	}
+	printSilent("");
+    outputBriefcaseEnchantments();
     return out;
 }
 Record Tab
@@ -6512,19 +6551,19 @@ buffer generateEnchantmentText()
     parseBriefcaseEnchantments();
     
     //Slot, id
-    string [int][int] enchantments_description;
+    //string [int][int] enchantments_description; //moved to __briefcase_enchantments_to_descriptions
     string [int][int] enchantments_commands;
     for i from 0 to 2
     {
-        enchantments_description[i] = listMakeBlankString();
+        //enchantments_description[i] = listMakeBlankString();
         enchantments_commands[i] = listMakeBlankString();
     }
-    foreach s in $strings[+25% Weapon Damage,+50% Spell Damage,+5 Prismatic Damage,+10% Critical Hit]
+    /*foreach s in $strings[+25% Weapon Damage,+50% Spell Damage,+5 Prismatic Damage,+10% Critical Hit]
         enchantments_description[0].listAppend(s);
     foreach s in $strings[+25% init,+100 Damage Absorption,+5 Hot res,+5 Cold res,+5 Spooky res,+5 Stench res,+5 Sleaze res]
         enchantments_description[1].listAppend(s);
     foreach s in $strings[+5-10 HP/MP regen,+5 adventures/day,+5 PvP fights/day,-5% combat,+5% combat,+25 ML,-3MP to use skills]
-        enchantments_description[2].listAppend(s);
+        enchantments_description[2].listAppend(s);*/
         
     foreach s in $strings[weapon,spell,prismatic,critical]
         enchantments_commands[0].listAppend(s);
@@ -6546,7 +6585,7 @@ buffer generateEnchantmentText()
         //Slots:
         out.append(HTMLGenerateTagPrefix("div", mapMake("style", "display:table-cell;width:33%;")));
         out.append(HTMLGenerateDivOfStyle("Slot " + display_slot_id, "font-size:1.5em;"));
-        foreach enchantment_id, description in enchantments_description[slot_id]
+        foreach enchantment_id, description in __briefcase_enchantments_to_descriptions[slot_id]
         {
             string command = enchantments_commands[slot_id][enchantment_id];
             string active_description;
@@ -6602,6 +6641,13 @@ buffer generateEnchantmentText()
             if (clickable)
                 div_map["onclick"] = "executeBriefcaseCommand('enchantment " + command + "');";
             out.append(HTMLGenerateTagWrap("div", active_description, div_map));
+        }
+        if (slot_id == 2 && clicks_remaining >= 3)
+        {
+            string title = "Reserve +adventures";
+            if (__file_state["_reserve for adventures"].to_boolean())
+                title = "Stop reserving +adventures";
+            out.append(HTMLGenerateTagWrap("div", title + HTMLGenerateSpanOfClass("", "briefcase_subtext"), mapMake("class", "briefcase_entry briefcase_button", "onclick", "executeBriefcaseCommand('reserve');")));
         }
         //out.append("__briefcase_enchantments[slot_id] = " + __briefcase_enchantments[slot_id]);
         out.append("</div>"); //cell
@@ -6735,7 +6781,7 @@ buffer generateBuffText()
             effect buff_effect = buffs_effects[slot_id][fake_id];
             string command = buffs_commands[slot_id][fake_id];
             int buff_id = __spy_effect_to_buff_id[buff_effect];
-            
+            if (my_path() == "G-Lover" && !buff_effect.contains_text("g") && !buff_effect.contains_text("G") && buff_effect != $effect[none]) continue;
             boolean known = (__file_state["tab effect " + buff_id] != "");
             Tab t = TabFromFileBuff(buff_id);
             boolean within_configuration = known && (__state.tab_configuration[t.id] == t.length);
