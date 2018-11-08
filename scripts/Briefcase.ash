@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.6";
+string __briefcase_version = "2.1.7";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1460,7 +1460,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.35a1";
+string __version = "1.4.37a1";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -6355,6 +6355,25 @@ buffer executeCommandCore(string command, boolean from_relay)
                 actionPressButton(discoverButtonWithFunctionID(4, false, false) + 1);
             }
             tabs_are_moving = testTabsAreMoving();
+            if (tabs_are_moving)
+            {
+            	//Load the page a thousand times until the tabs stop moving.
+            	printSilent("Warning: We were unable to stop tabs. So, we're using the worst possible approach to fix it. This may take a while...");
+                breakout = 1000;
+                
+            	while (breakout > 0)
+                {
+                	//Load the raw page, to prevent seven hundred file writes.
+                	breakout -= 1;
+                    buffer page_text = visit_url("place.php?whichplace=kgb");
+                    if (!page_text.contains_text("action=kgb_tab"))
+                    	break;
+                    if (breakout % 20 == 0)
+                    	printSilent("Stopping tabs...");
+                }
+                tabs_are_moving = testTabsAreMoving();
+            }
+            
             if (tabs_are_moving)
                 printSilent("Unable to stop tabs.");
             else
