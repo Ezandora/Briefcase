@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.7";
+string __briefcase_version = "2.1.8";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -18,6 +18,8 @@ boolean __setting_have_dark_background = true;
 
 string __setting_background_colour = "#E1E3E7";
 string __setting_light_colour = "#87888A";
+
+boolean __briefcase_observed_out_of_clicks = false;
 //WARNING: All listAppend functions are flawed.
 //Specifically, there's a possibility of a hole that causes order to be incorrect.
 //But, the only way to fix that is to traverse the list to determine the maximum key.
@@ -377,6 +379,12 @@ familiar [int] listMakeBlankFamiliar()
 {
 	familiar [int] result;
 	return result;
+}
+
+int [int] listMakeBlankInt()
+{
+    int [int] result;
+    return result;
 }
 
 
@@ -1460,7 +1468,7 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.37a1";
+string __version = "1.4.38a1";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -3126,15 +3134,16 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		if (my_id() == 1557284)
 			logprint("KGBRIEFCASEDEBUG: Out of... clicks? For the day?");
 		//__file_state["_clicks"] = 22;
+        __briefcase_observed_out_of_clicks = true;
 		__file_state["_out of clicks for the day"] = true;
 		writeFileState();
 	}
 	//This seems to be inaccurate at the moment, so don't draw conclusions:
-	if (__file_state["_clicks"].to_int() >= 22 && !__file_state["_out of clicks for the day"].to_boolean() && false)
+	/*if (__file_state["_clicks"].to_int() >= 22 && !__file_state["_out of clicks for the day"].to_boolean() && false)
 	{
 		__file_state["_out of clicks for the day"] = true;
 		writeFileState();
-	}
+	}*/
 	
 	if (state.horizontal_light_states[1] == LIGHT_STATE_ON && state.horizontal_light_states[2] != LIGHT_STATE_ON && (action_type == ACTION_TYPE_LEFT_ACTUATOR || action_type == ACTION_TYPE_RIGHT_ACTUATOR) && state.last_action_results["You press the lock actuator to the side."] && !state.last_action_results["You hear a mechanism whirr for a moment inside the case on the left side."] && !state.last_action_results["You hear a mechanism whirr for a moment inside the case on the right side."])
 	{
@@ -3555,7 +3564,7 @@ int enchantmentDeltaToAdventures(int current_enchantment)
 
 boolean haveClicksRemaining(int clicks_needed)
 {
-    if (__file_state["_out of clicks for the day"].to_boolean())
+    if (__briefcase_observed_out_of_clicks) //__file_state["_out of clicks for the day"].to_boolean())
         return false;
     
     boolean reserve_for_adventures = __file_state["_reserve for adventures"].to_boolean();
@@ -5281,7 +5290,7 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 	}
 	else
 	{
-        if (__file_state["_out of clicks for the day"].to_boolean())
+        if (__briefcase_observed_out_of_clicks)//__file_state["_out of clicks for the day"].to_boolean())
         {
             if (!from_relay)
                 printSilent("Out of clicks for the day.");
@@ -5349,7 +5358,8 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
 		{
 			//Set this slot:
 			int breakout = 8;
-			while (!__file_state["_out of clicks for the day"].to_boolean() && __briefcase_enchantments[slot_id] != id && breakout > 0)
+            //__file_state["_out of clicks for the day"].to_boolean()
+			while (!__briefcase_observed_out_of_clicks && __briefcase_enchantments[slot_id] != id && breakout > 0)
 			{
                 if (slot_id == 2 && __file_state["_reserve for adventures"].to_boolean())
                 {
