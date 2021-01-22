@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.8";
+string __briefcase_version = "2.1.9";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -674,7 +674,6 @@ string listJoinComponents(string [int] list, string joining_string)
 	return listJoinComponents(list, joining_string, "");
 }
 
-
 string listJoinComponents(item [int] list, string joining_string, string and_string)
 {
 	//lazy:
@@ -828,6 +827,15 @@ int [int] listCopy(int [int] l)
     return result;
 }
 
+item [int] listCopy(item [int] l)
+{
+    item [int] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+
 monster [int] listCopy(monster [int] l)
 {
     monster [int] result;
@@ -855,6 +863,14 @@ skill [int] listCopy(skill [int] l)
 boolean [monster] listCopy(boolean [monster] l)
 {
     boolean [monster] result;
+    foreach key in l
+        result[key] = l[key];
+    return result;
+}
+
+int [item] listCopy(int [item] l)
+{
+    int [item] result;
     foreach key in l
         result[key] = l[key];
     return result;
@@ -950,6 +966,29 @@ string [string] mapCopy(string [string] map)
     foreach key in map
         result[key] = map[key];
     return result;
+}
+
+boolean mapsAreEqual(string [string] map1, string [string] map2)
+{
+	if (map1.count() != map2.count())
+	{
+        //print_html("map1.c = " + map1.count() + " which is not " + map2.count());
+		return false;
+    }
+	foreach key1, v in map1
+	{
+		if (!(map2 contains key1))
+        {
+        	//print_html("map2 lacks " + key1);
+        	return false;
+        }
+        if (map2[key1] != v)
+        {
+            //print_html("map2 v(" + map2[key1] + " does not equal " + key1 + " (" + v + ")");
+        	return false;
+        }
+	}
+	return true;
 }
 
 boolean [string] listInvert(string [int] list)
@@ -1097,6 +1136,18 @@ int listKeyForIndex(monster [int] list, int index)
 	return -1;
 }
 
+int listKeyForIndex(int [int] list, int index)
+{
+    int i = 0;
+    foreach key in list
+    {
+        if (i == index)
+            return key;
+        i += 1;
+    }
+    return -1;
+}
+
 int llistKeyForIndex(string [int][int] list, int index)
 {
 	int i = 0;
@@ -1151,6 +1202,15 @@ monster listGetRandomObject(monster [int] list)
         return $monster[none];
     if (list.count() == 1)
     	return list[listKeyForIndex(list, 0)];
+    return list[listKeyForIndex(list, random(list.count()))];
+}
+
+int listGetRandomObject(int [int] list)
+{
+    if (list.count() == 0)
+        return -1;
+    if (list.count() == 1)
+        return list[listKeyForIndex(list, 0)];
     return list[listKeyForIndex(list, random(list.count()))];
 }
 
@@ -1269,6 +1329,7 @@ int [int] stringToIntIntList(string input, string delimiter)
 		return out;
 	foreach key, v in input.split_string(delimiter)
 	{
+		if (v == "") continue;
 		out.listAppend(v.to_int());
 	}
 	return out;
@@ -1277,6 +1338,13 @@ int [int] stringToIntIntList(string input, string delimiter)
 int [int] stringToIntIntList(string input)
 {
 	return stringToIntIntList(input, ",");
+}
+
+boolean [location] locationToLocationMap(location l)
+{
+	boolean [location] map;
+	map[l] = true;
+	return map;
 }
 
 
@@ -1468,16 +1536,18 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
     return HTMLGenerateSpanFont(text, "gray");
 }
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.38a1";
+string __version = "1.4.42a1";
 
 //Debugging:
 boolean __setting_debug_mode = false;
+boolean debug = __setting_debug_mode; //if (debug)
 boolean __setting_debug_enable_example_mode_in_aftercore = false; //for testing. Will give false information, so don't enable
 boolean __setting_debug_show_all_internal_states = false; //displays usable images/__misc_state/__misc_state_string/__misc_state_int/__quest_state
 
 //Display settings:
 boolean __setting_entire_area_clickable = false;
 boolean __setting_side_negative_space_is_dark = true;
+boolean __setting_newstyle_navbars = true;
 boolean __setting_fill_vertical = true;
 int __setting_image_width_large = 100;
 int __setting_image_width_medium = 70;
@@ -1608,6 +1678,13 @@ Page Page()
 	return __global_page;
 }
 
+Page PageResetGlobalPage()
+{
+	Page new_page;
+	__global_page = new_page;
+	return __global_page;
+}
+
 buffer PageGenerateBodyContents(Page page_in)
 {
     return page_in.body_contents;
@@ -1691,6 +1768,22 @@ buffer PageGenerate(Page page_in)
 void PageGenerateAndWriteOut(Page page_in)
 {
 	write(PageGenerate(page_in));
+}
+
+buffer PageGenerateAsElementInBody(Page page_in)
+{
+	//In this mode, we don't generate an entire page - just one node in the body tag.
+	//Includes style.
+	
+    buffer result;
+    result.append(PageGenerateStyle(page_in));
+    result.append(page_in.body_contents);
+    return result;
+}
+
+buffer PageGenerateAsElementInBody()
+{
+	return Page().PageGenerateAsElementInBody();
 }
 
 void PageSetTitle(Page page_in, string title)
@@ -2186,11 +2279,16 @@ Vec2i Vec2iZero()
 	return Vec2iMake(0,0);
 }
 
-boolean Vec2iValueInRange(Vec2i v, int value)
+boolean Vec2iValueInInterval(Vec2i v, int value)
 {
     if (value >= v.x && value <= v.y)
         return true;
     return false;
+}
+
+boolean Vec2iValueInRange(Vec2i v, int value)
+{
+	return Vec2iValueInInterval(v, value);
 }
 
 boolean Vec2iEquals(Vec2i a, Vec2i b)
@@ -2442,6 +2540,12 @@ string [int] split_string_alternate(string source, string delimiter)
         return listMakeBlankString();
     return split_string_mutable(source, delimiter);
 }
+string [int] split_string_alternate_immutable(string source, string delimiter)
+{
+    if (source.length() == 0)
+        return listMakeBlankString();
+    return split_string(source, delimiter);
+}
 
 string slot_to_string(slot s)
 {
@@ -2529,12 +2633,18 @@ string capitaliseFirstLetter(string v)
 	return buf.to_string();
 }
 
+//shadowing; this may override ints
 string pluralise(float value, string non_plural, string plural)
 {
+	string value_out = "";
+	if (value.to_int() == value)
+		value_out = value.to_int();
+    else
+    	value_out = value;
 	if (value == 1.0)
-		return value + " " + non_plural;
+		return value_out + " " + non_plural;
 	else
-		return value + " " + plural;
+		return value_out + " " + plural;
 }
 
 string pluralise(int value, string non_plural, string plural)
@@ -2666,6 +2776,45 @@ void printSilent(string line, string font_colour)
 void printSilent(string line)
 {
     print_html(line.processStringForPrinting());
+}
+
+buffer visit_url_retry(string url, boolean a, boolean b)
+{
+    buffer page_text;
+    int breakout = 10;
+    while (page_text.length() == 0 && breakout > 0)
+    {
+        breakout -= 1;
+        page_text = visit_url(url, a, b);
+        if (page_text.length() == 0)
+        {
+            print(url + " didn't load, retrying...", "red");
+            wait(30);
+        }
+    }
+    return page_text;
+}
+
+buffer visit_url_retry(string url)
+{
+    return visit_url_retry(url, true, false);
+}
+
+buffer visit_url_retry()
+{
+    buffer page_text;
+    int breakout = 10;
+    while (page_text.length() == 0 && breakout > 0)
+    {
+        breakout -= 1;
+        page_text = visit_url();
+        if (page_text.length() == 0)
+        {
+            print("visit_url() didn't load, retrying...", "red");
+            wait(30);
+        }
+    }
+    return page_text;
 }
 
 //Due to how relay scripts operate, we theoretically could have this script running simultaneously with another.
@@ -3030,7 +3179,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 		//We should reload the page for state:
 		print_html("Revisiting page...");
         if (allow_visiting_urls)
-            page_text = visit_url("place.php?whichplace=kgb");
+            page_text = visit_url_retry("place.php?whichplace=kgb");
 	}
 	BriefcaseState state;
 	//Intruder alert! Red spy is in the base!
@@ -3175,7 +3324,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
             }
             else
             {
-                buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+                buffer page_text_2 = visit_url_retry("place.php?whichplace=kgb");
                 state.tab_configuration = parseTabState(page_text_2);
                 if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
                 {
@@ -3222,7 +3371,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
             }
             else
             {
-                buffer page_text_2 = visit_url("place.php?whichplace=kgb");
+                buffer page_text_2 = visit_url_retry("place.php?whichplace=kgb");
                 state.tab_configuration = parseTabState(page_text_2);
                 if (!configurationsAreEqual(current_tab_configuration, state.tab_configuration))
                 {
@@ -3481,7 +3630,11 @@ void parseBriefcaseEnchantments()
     }
     
 	printSilent("Viewing briefcase enchantments.", "gray");
-	buffer page_text = visit_url("desc_item.php?whichitem=311743898");
+	buffer page_text = visit_url_retry("desc_item.php?whichitem=311743898");
+	if (page_text.length() == 0 && get_property_boolean("relayAddsWikiLinks"))
+	{
+		print("Warning: relayAddsWikiLinks is enabled. This breaks our parsing.", "red");
+	}
 	
 	//supposedly breaks:
 	//page_text = to_buffer("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"    \"http://www.w3.org/TR/html4/loose.dtd\"><html><head><title>Item Description</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/images/styles.css\"><style>a.hand {    cursor: pointer;}</style><script language=Javascript src=\"/images/scripts/keybinds.min.2.js\"></script><script language=Javascript src=\"/images/scripts/window.20111231.js\"></script><script language=\"Javascript\" src=\"/basics.js\"></script><link rel=\"stylesheet\" href=\"/basics.1.css\" /></head><body><div id=\"description\" class=small><center><img src=\"/images/itemimages/kgbcase.gif\" height=30 width=30 alt=\"kgbcase\"><br><b>Kremlin's Greatest Briefcase</b></center><p><blockquote>This old-fashioned (and heavy) leather briefcase has a post-it note stuck to the side: \"Agent: this briefcase was confiscated from a member of an opposing organization. You are instructed to investigate its capabilities & take advantage of them if possible. --L\"<!-- itemid: 9493 --><br><br>Type: <b>accessory</b><Br>Cannot be traded or discarded<p><center><b><font color=blue>All Attributes +10<br>Maximum HP/MP +25<br><font color=\"blue\">Weapon Damage +25%<br>Damage Absorption +100<br>+5 Adventure(s) per day</font><br>Lets you banish enemy agents with tranquilizer darts</font></b></center><br><b>NOTE:</b> You may not equip more than one of these at a time.</blockquote><script type=\"text/javascript\"><!--var resizetries = 0;var fsckinresize;setTimeout(fsckinresize = function ()  {    var desch = document.getElementById('description').offsetHeight;    if (desch < 100 && resizetries < 5) {        setTimeout(fsckinresize, 100);        resizetries++;    }    if (desch < 100) desch = 200;     //alert('resizing on try #' + resizetries);    if (self.resizeTo && window.outerHeight) {         self.resizeTo(400, desch + (window.outerHeight - window.innerHeight) + 50);     }    else if (self.resizeTo ) { self.resizeTo(400, desch+130); }    else { window.innerHeight = newh; }}, 100);//--></script></div></body><script src=\"/onfocus.1.js\"></script></html>");
@@ -3603,7 +3756,7 @@ void actionSetDialsTo(int [int] dial_configuration)
 			breakout -= 1;
 			//printSilent("Moving dial " + (i + 1) + "...", "gray");
 			int [int] previous_dial_state = __state.dial_configuration.listCopy();
-			updateState(visit_url("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
+			updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_dial" + (i + 1), false, false));
 			if (configurationsAreEqual(__state.dial_configuration, previous_dial_state))
 			{
 				abort("Unable to interact with the briefcase?");
@@ -3620,7 +3773,7 @@ void actionVisitBriefcase(boolean silence)
     updateLockTime();
     if (!silence)
         printSilent("Loading briefcase...", "gray");
-	updateState(visit_url("place.php?whichplace=kgb", false, false));
+	updateState(visit_url_retry("place.php?whichplace=kgb", false, false));
 }
 
 void actionVisitBriefcase()
@@ -3634,7 +3787,7 @@ void actionPressLeftActuator()
 	printSilent("Clicking left actuator...", "gray");
 	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator1", false, false), ACTION_TYPE_LEFT_ACTUATOR, -1);
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_actuator1", false, false), ACTION_TYPE_LEFT_ACTUATOR, -1);
 }
 
 void actionPressRightActuator()
@@ -3643,7 +3796,7 @@ void actionPressRightActuator()
 	printSilent("Clicking right actuator...", "gray");
 	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_actuator2", false, false), ACTION_TYPE_RIGHT_ACTUATOR, -1);
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_actuator2", false, false), ACTION_TYPE_RIGHT_ACTUATOR, -1);
 }
 
 void actionManipulateHandle()
@@ -3651,9 +3804,9 @@ void actionManipulateHandle()
     updateLockTime();
 	printSilent("Toggling handle...", "gray");
 	if (__state.handle_up)
-		updateState(visit_url("place.php?whichplace=kgb&action=kgb_handleup", false, false));
+		updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_handleup", false, false));
 	else
-		updateState(visit_url("place.php?whichplace=kgb&action=kgb_handledown", false, false));
+		updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_handledown", false, false));
 }
 
 void actionSetHandleTo(boolean up)
@@ -3666,7 +3819,7 @@ void actionTurnCrank()
 {
     updateLockTime();
 	printSilent("Turning crank.", "gray");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_crank", false, false));
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_crank", false, false));
 }
 
 void actionPressButton(int button_id) //1 through 6
@@ -3690,7 +3843,7 @@ void actionPressButton(int button_id) //1 through 6
 		abort("Aborted.");
     if (__setting_do_not_actually_use_clicks)
         return;
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_button" + button_id, false, false), ACTION_TYPE_BUTTON, button_id);
 }
 
 void actionPressTab(int tab_id)
@@ -3699,14 +3852,14 @@ void actionPressTab(int tab_id)
 	printSilent("Clicking tab " + tab_id + ".", "gray");
 	if (__setting_confirm_actions_that_will_use_a_click && !user_confirm("READY?"))
 		abort("Aborted.");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false), ACTION_TYPE_TAB, tab_id);
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_tab" + tab_id, false, false), ACTION_TYPE_TAB, tab_id);
 }
 
 void actionCollectLeftDrawer()
 {
     updateLockTime();
 	printSilent("Collecting from left drawer.", "gray");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_drawer2", false, false));
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_drawer2", false, false));
 	if (__state.last_action_results["The drawer is empty now, but you can hear gears inside the case steadily turning. Maybe you should check back tomorrow?"]);
 	{
 		__file_state["_left drawer collected"] = true;
@@ -3719,7 +3872,7 @@ void actionCollectRightDrawer()
 {
     updateLockTime();
 	printSilent("Collecting from right drawer.", "gray");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_drawer1", false, false));
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_drawer1", false, false));
 	if (__state.last_action_results["The drawer is empty now, but you can hear gears inside the case steadily turning. Maybe you should check back tomorrow?"]);
 	{
 		__file_state["_right drawer collected"] = true;
@@ -3731,7 +3884,7 @@ void actionCollectMartiniHose()
 {
     updateLockTime();
 	printSilent("Collecting from martini hose.", "gray");
-	updateState(visit_url("place.php?whichplace=kgb&action=kgb_dispenser", false, false));
+	updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_dispenser", false, false));
 	if (__state.last_action_results["Hmm.  Nothing happens.  Looks like it's out of juice for today."])
 	{
 		__file_state["_martini hose collected"] = 3;
@@ -5372,15 +5525,22 @@ buffer handleEnchantmentCommand(string command, boolean from_relay)
                         moving_closer_to_adventures = true;
                     //print_html(moving_closer_to_adventures ? "moving closer to adventures" : "moving away from adventures");
                     if (current_position_delta == 0 && !haveClicksRemaining(2))
+                    {
+                    	out.append(HTMLGenerateSpanFont("You have the +adventures enchantment reserved. Can't change enchantment.<br>", "red"));
                         break;
+                    }
                     if (!moving_closer_to_adventures && !haveClicksRemaining(2))
+                    {
+                        out.append(HTMLGenerateSpanFont("You have the +adventures enchantment reserved. Can't change enchantment.<br>", "red"));
                         break;
+                    }
                 }
                 else if (!haveClicksRemaining(1))
                     break;
 				if (__briefcase_enchantments[slot_id] == -1)
 				{
-					abort("implement parsing this specific enchantment");
+					print("implement parsing this specific enchantment", "red");
+                    break;
 				}
 				breakout -= 1;
 				//Which direction would be ideal?
@@ -5682,7 +5842,7 @@ buffer handleBuffCommand(string command, boolean from_relay)
             if (!from_relay)
                 printSilent("Buff command disabled while tabs are moving. Try \"briefcase stop\".");
             else
-                out.append(HTMLGenerateSpanFont("Buff command disabled while tabs are moving.", "red"));
+                out.append(HTMLGenerateSpanFont("Buff command disabled while tabs are moving. Try \"briefcase stop\" in the graphical CLI.", "red"));
             return out;
         }
         //For computing deltas (have we gained this buff already)
@@ -6103,7 +6263,7 @@ void collectOnceDailies()
     if (__state.case_opening_unlocked && !__file_state["_case opened"].to_boolean())
     {
         printSilent("Opening case...", "gray");
-        updateState(visit_url("place.php?whichplace=kgb&action=kgb_daily"));
+        updateState(visit_url_retry("place.php?whichplace=kgb&action=kgb_daily"));
         __file_state["_case opened"] = true;
         writeFileState();
     }
@@ -6126,10 +6286,10 @@ buffer executeCommandCore(string command, boolean from_relay)
             printSilent("You don't seem to own a briefcase.");
 		return out;
 	}
-    /*if (!get_property("svnUpdateOnLogin").to_boolean() && !from_relay)
-    {
-        printSilent("Consider enabling Preferences>SVN>Update installed SVN projects on login; this script is changing often.");
-    }*/
+	if (can_interact() && $item[kremlin's greatest briefcase].storage_amount() > 0 && ($item[kremlin's greatest briefcase].equipped_amount() + $item[kremlin's greatest briefcase].item_amount() == 0))
+	{
+		cli_execute("pull kremlin's greatest briefcase");
+	}
 	//readFileState(); //done already
 	
 	if (command == "help" || command == "" || command.replace_string(" ", "").to_string() == "")
@@ -6375,7 +6535,7 @@ buffer executeCommandCore(string command, boolean from_relay)
                 {
                 	//Load the raw page, to prevent seven hundred file writes.
                 	breakout -= 1;
-                    buffer page_text = visit_url("place.php?whichplace=kgb");
+                    buffer page_text = visit_url_retry("place.php?whichplace=kgb");
                     if (!page_text.contains_text("action=kgb_tab"))
                     	break;
                     if (breakout % 20 == 0)
@@ -6671,7 +6831,7 @@ buffer generateEnchantmentText()
                 div_map["onclick"] = "executeBriefcaseCommand('enchantment " + command + "');";
             out.append(HTMLGenerateTagWrap("div", active_description, div_map));
         }
-        if (slot_id == 2 && clicks_remaining >= 3)
+        if (slot_id == 2 && clicks_remaining >= 1)
         {
             string title = "Reserve +adventures";
             if (__file_state["_reserve for adventures"].to_boolean())
@@ -7063,7 +7223,7 @@ void relayScriptMain()
     if (get_property_boolean("kgbbriefcase_disable_gui"))
     {
         string [string] form_fields = form_fields();
-        buffer page_text = visit_url();
+        buffer page_text = visit_url_retry();
         processPageVisit(page_text, form_fields);
         string extra = "<div onclick=\"var form_data = 'relay_request=true&type=enable_gui'; var request = new XMLHttpRequest(); request.onreadystatechange = function() { if (request.readyState == 4) { if (request.status == 200) { location.reload() } } }; request.open('POST', 'place.kgb.ash'); request.send(form_data);\" style=\"text-decoration:underline;cursor:pointer;\">Enable GUI</div><br>";
         page_text.replace_string("<a href=inventory.php>Back to your Inventory</a>", extra + "<a href=inventory.php>Back to your Inventory</a>");
@@ -7074,7 +7234,7 @@ void relayScriptMain()
     actionVisitBriefcase(true);
     if (!__state.briefcase_available)
     {
-    	write(visit_url());
+    	write(visit_url_retry());
      	return;   
     }
     if (!lockIsUsedBySomeoneElse())
@@ -7084,7 +7244,7 @@ void relayScriptMain()
         releaseActionLock();
     }
 
-    //buffer page_text = visit_url();
+    //buffer page_text = visit_url_retry();
     //write(page_text);
     
     write(generatePageText(false));
@@ -7096,7 +7256,7 @@ if (__setting_output_help_before_main)
 
 void main(string command)
 {
-    executeCommand(command, false);
+    print_html(executeCommand(command, false));
 }
 
 /*
