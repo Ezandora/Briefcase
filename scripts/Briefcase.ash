@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.9";
+string __briefcase_version = "2.1.10";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -1353,30 +1353,109 @@ string __setting_indention_width = __setting_indention_width_in_em + "em";
 
 string __html_right_arrow_character = "&#9658;";
 
-buffer HTMLGenerateTagPrefix(string tag, string [string] attributes)
+//Design note: try to prefer HTMLAppend to HTMLGenerate due to lack of temporary objects.
+
+
+buffer HTMLAppendTagPrefix(buffer out, string tag, string attribute_1, string value_1, string attribute_2, string value_2)
 {
-	buffer result;
-	result.append("<");
-	result.append(tag);
+	out.append("<");
+	out.append(tag);
+	
+    out.append(" ");
+    out.append(attribute_1);
+    if (value_1 != "")
+    {
+        boolean is_integer = value_1.is_integer(); //don't put quotes around integer attributes (i.e. width, height)
+        
+        out.append("=");
+        if (!is_integer)
+            out.append("\"");
+        out.append(value_1);
+        if (!is_integer)
+            out.append("\"");
+    }
+    
+    out.append(" ");
+    out.append(attribute_2);
+    if (value_2 != "")
+    {
+        boolean is_integer = value_2.is_integer(); //don't put quotes around integer attributes (i.e. width, height)
+        
+        out.append("=");
+        if (!is_integer)
+            out.append("\"");
+        out.append(value_2);
+        if (!is_integer)
+            out.append("\"");
+    }
+    
+    
+    
+	out.append(">");
+	return out;
+}
+
+buffer HTMLAppendTagPrefix(buffer out, string tag, string attribute_1, string value_1)
+{
+	out.append("<");
+	out.append(tag);
+	
+    out.append(" ");
+    out.append(attribute_1);
+    if (value_1 != "")
+    {
+        boolean is_integer = value_1.is_integer(); //don't put quotes around integer attributes (i.e. width, height)
+        
+        out.append("=");
+        if (!is_integer)
+            out.append("\"");
+        out.append(value_1);
+        if (!is_integer)
+            out.append("\"");
+    }
+    
+    
+	out.append(">");
+	return out;
+}
+
+buffer HTMLAppendTagPrefix(buffer out, string tag, string [string] attributes)
+{
+	out.append("<");
+	out.append(tag);
 	foreach attribute_name, attribute_value in attributes
 	{
 		//string attribute_value = attributes[attribute_name];
-		result.append(" ");
-		result.append(attribute_name);
+		out.append(" ");
+		out.append(attribute_name);
 		if (attribute_value != "")
 		{
 			boolean is_integer = attribute_value.is_integer(); //don't put quotes around integer attributes (i.e. width, height)
 			
-			result.append("=");
+			out.append("=");
 			if (!is_integer)
-				result.append("\"");
-			result.append(attribute_value);
+				out.append("\"");
+			out.append(attribute_value);
 			if (!is_integer)
-				result.append("\"");
+				out.append("\"");
 		}
 	}
-	result.append(">");
-	return result;
+	out.append(">");
+	return out;
+}
+
+buffer HTMLGenerateTagPrefix(string tag, string [string] attributes)
+{
+	buffer result;
+	return HTMLAppendTagPrefix(result, tag, attributes);
+}
+
+buffer HTMLAppendTagPrefix(buffer out, string tag)
+{
+    out.append("<");
+    out.append(tag);
+    out.append(">");
+    return out;
 }
 
 buffer HTMLGenerateTagPrefix(string tag)
@@ -1388,42 +1467,72 @@ buffer HTMLGenerateTagPrefix(string tag)
     return result;
 }
 
+
+buffer HTMLAppendTagSuffix(buffer out, string tag)
+{
+    out.append("</");
+    out.append(tag);
+    out.append(">");
+    return out;
+}
+
 buffer HTMLGenerateTagSuffix(string tag)
 {
     buffer result;
-    result.append("</");
-    result.append(tag);
-    result.append(">");
-    return result;
+    return result.HTMLAppendTagSuffix(tag);
+}
+
+buffer HTMLAppendTagWrap(buffer out, string tag, string source, string [string] attributes)
+{
+    out.HTMLAppendTagPrefix(tag, attributes);
+    out.append(source);
+    out.HTMLAppendTagSuffix(tag);
+	return out;
 }
 
 buffer HTMLGenerateTagWrap(string tag, string source, string [string] attributes)
 {
     buffer result;
-    result.append(HTMLGenerateTagPrefix(tag, attributes));
-    result.append(source);
-    result.append(HTMLGenerateTagSuffix(tag));
-	return result;
+    return result.HTMLAppendTagWrap(tag, source, attributes);
 }
 
 buffer HTMLGenerateTagWrap(string tag, string source)
 {
     buffer result;
-    result.append(HTMLGenerateTagPrefix(tag));
+    result.HTMLAppendTagPrefix(tag);
     result.append(source);
-    result.append(HTMLGenerateTagSuffix(tag));
+    result.HTMLAppendTagSuffix(tag);
 	return result;
+}
+
+buffer HTMLAppendDivOfClass(buffer out, string source, string class_name)
+{
+	if (class_name == "")
+	{
+		out.append("<div>");
+		//return HTMLGenerateTagWrap("div", source);
+    }
+	else
+	{
+		out.append("<div class=\"");
+        out.append(class_name);
+        out.append("\">");
+		//return HTMLGenerateTagWrap("div", source, mapMake("class", class_name));
+    }
+    out.append(source);
+    out.append("</div>");
+    
+    return out;
 }
 
 buffer HTMLGenerateDivOfClass(string source, string class_name)
 {
-	if (class_name == "")
-		return HTMLGenerateTagWrap("div", source);
-	else
-		return HTMLGenerateTagWrap("div", source, mapMake("class", class_name));
+	buffer out;
+	out.HTMLAppendDivOfClass(source, class_name);
+	return out;
 }
 
-buffer HTMLGenerateDivOfClass(string source, string class_name, string extra_style)
+buffer HTMLGenerateDivOfClassAndStyle(string source, string class_name, string extra_style)
 {
 	return HTMLGenerateTagWrap("div", source, mapMake("class", class_name, "style", extra_style));
 }
@@ -1535,8 +1644,14 @@ string HTMLGreyOutTextUnlessTrue(string text, boolean conditional)
         return text;
     return HTMLGenerateSpanFont(text, "gray");
 }
+
+//Should this be here...? Might be "Guide" instead of this.
+string HTMLGenerateTooltip(string underline_text, string inner_html)
+{
+	return HTMLGenerateSpanOfClass(HTMLGenerateSpanOfClass(inner_html, "r_tooltip_inner_class") + underline_text, "r_tooltip_outer_class");
+}
 //These settings are for development. Don't worry about editing them.
-string __version = "1.4.42a1";
+string __version = "2.0.8";
 
 //Debugging:
 boolean __setting_debug_mode = false;
@@ -1549,8 +1664,8 @@ boolean __setting_entire_area_clickable = false;
 boolean __setting_side_negative_space_is_dark = true;
 boolean __setting_newstyle_navbars = true;
 boolean __setting_fill_vertical = true;
-int __setting_image_width_large = 100;
-int __setting_image_width_medium = 70;
+int __setting_image_width_large = 50;
+int __setting_image_width_medium = 50;
 int __setting_image_width_small = 30;
 
 boolean __show_importance_bar = true;
@@ -1558,6 +1673,9 @@ boolean __setting_show_navbar = true;
 boolean __setting_navbar_has_proportional_widths = false; //doesn't look very good, remove?
 boolean __setting_gray_navbar = true;
 boolean __use_table_based_layouts = false; //backup implementation. not compatible with media queries. consider removing?
+boolean __use_flexbox_on_checklists = true;
+boolean __enable_showhide_feature = true;
+
 boolean __setting_use_kol_css = false; //images/styles.css
 boolean __setting_show_location_bar = true;
 boolean __setting_enable_location_popup_box = true;
@@ -1568,12 +1686,27 @@ float __setting_location_bar_max_width_per_entry = 0.35;
 boolean __setting_small_size_uses_full_width = false; //implemented, but disabled - doesn't look amazing. reduced indention width instead to compensate
 boolean __setting_enable_outputting_all_numberology_options = true;
 
-string __setting_unavailable_colour = "#7F7F7F";
-string __setting_line_colour = "#B2B2B2";
-string __setting_dark_colour = "#C0C0C0";
-string __setting_modifier_colour = "#404040";
-string __setting_navbar_background_colour = "#FFFFFF";
-string __setting_page_background_colour = "#F7F7F7";
+//Do not use directly; use var() calls
+string __setting_unavailable_colour = "#7F7F7F"; //var(--unavailable_colour)
+string __setting_line_colour = "#B2B2B2"; //var(--line_colour)
+string __setting_dark_colour = "#C0C0C0"; //var(--dark_colour)
+string __setting_modifier_colour = "#404040"; //var(--modifier_colour)
+string __setting_navbar_background_colour = "#FFFFFF"; //var(--navbar_background_colour)
+string __setting_page_background_colour = "#F7F7F7"; //var(--page_background_colour)
+string __setting_main_content_background_colour = "#FFFFFF"; //var(--main_content_background_colour)
+string __setting_main_content_text_colour = "#000000"; //var(--main_content_text_colour)
+string __setting_hover_alternate_colour = "#CCCCCC"; //var(--hover_alternate_colour)
+
+//Inverted, dark mode versions of above:
+string __setting_unavailable_colour_dark = "#7F7F7F"; //var(--unavailable_colour)
+string __setting_line_colour_dark = "#4D4D4D"; //var(--line_colour)
+string __setting_dark_colour_dark = "#3F3F3F"; //var(--dark_colour)
+string __setting_modifier_colour_dark = "#BFBFBF"; //var(--modifier_colour)
+string __setting_navbar_background_colour_dark = "#000000"; //var(--navbar_background_colour)
+string __setting_page_background_colour_dark = "#3F3F3F"; //var(--page_background_colour)
+string __setting_main_content_background_colour_dark = "#000000"; //var(--main_content_background_colour)
+string __setting_main_content_text_colour_dark = "#FFFFFF"; //var(--main_content_text_colour)
+string __setting_hover_alternate_colour_dark = "#333333"; //var(--hover_alternate_colour)
 
 string __setting_media_query_large_size = "@media (min-width: 500px)";
 string __setting_media_query_medium_size = "@media (min-width: 350px) and (max-width: 500px)";
@@ -1584,6 +1717,7 @@ float __setting_navbar_height_in_em = 2.3;
 string __setting_navbar_height = __setting_navbar_height_in_em + "em";
 int __setting_horizontal_width = 600;
 boolean __setting_ios_appearance = false; //no don't
+string __relay_filename;
 
 record CSSEntry
 {
@@ -1591,32 +1725,34 @@ record CSSEntry
     string class_name;
     string definition;
     int importance;
+    string block_identifier;
 };
 
-CSSEntry CSSEntryMake(string tag, string class_name, string definition, int importance)
+CSSEntry CSSEntryMake(string tag, string class_name, string definition, int importance, string block_identifier)
 {
     CSSEntry entry;
     entry.tag = tag;
     entry.class_name = class_name;
     entry.definition = definition;
     entry.importance = importance;
+    entry.block_identifier = block_identifier;
     return entry;
 }
 
-record CSSBlock
+record CSSBlock //no longer used; kept for backwards compatibility
 {
     CSSEntry [int] defined_css_classes;
     string identifier;
 };
 
-CSSBlock CSSBlockMake(string identifier)
+CSSBlock CSSBlockMake(string identifier) //no longer used; kept for backwards compatibility
 {
     CSSBlock result;
     result.identifier = identifier;
     return result;
 }
 
-buffer CSSBlockGenerate(CSSBlock block)
+buffer CSSBlockGenerate(CSSBlock block) //no longer used; kept for backwards compatibility
 {
     buffer result;
     
@@ -1665,7 +1801,8 @@ record Page
 	buffer body_contents;
 	string [string] body_attributes; //[attribute_name] -> attribute_value
 	
-    CSSBlock [string] defined_css_blocks; //There is always an implicit "" block.
+    CSSBlock [string] defined_css_blocks; //There is always an implicit "" block. Deprecated.
+    CSSEntry [int] defined_css_classes; //new approach
 };
 
 
@@ -1699,12 +1836,12 @@ buffer PageGenerateStyle(Page page_in)
 {
     buffer result;
     
-    if (page_in.defined_css_blocks.count() > 0)
+    if (page_in.defined_css_blocks.count() > 0) //no longer used; kept for backwards compatibility
     {
         if (true)
         {
             result.append("\t\t");
-            result.append(HTMLGenerateTagPrefix("style", mapMake("type", "text/css")));
+            result.HTMLAppendTagPrefix("style", "type", "text/css");
             result.append("\n");
         }
         result.append(page_in.defined_css_blocks[""].CSSBlockGenerate()); //write first
@@ -1720,6 +1857,62 @@ buffer PageGenerateStyle(Page page_in)
             result.append("\t\t</style>\n");
         }
     }
+    
+    if (page_in.defined_css_classes.count() > 0)
+    {
+    	sort page_in.defined_css_classes by value.block_identifier;
+    	sort page_in.defined_css_classes by value.importance;
+        
+        if (true)
+        {
+            result.append("\t\t");
+            result.HTMLAppendTagPrefix("style", "type", "text/css");
+            result.append("\n");
+        }
+        
+        
+        string active_block_identifier = "";
+        foreach key, entry in page_in.defined_css_classes
+        {
+            boolean has_identifier = (entry.block_identifier != "");
+            
+            if (entry.block_identifier != active_block_identifier)
+            {
+                if (active_block_identifier.length() > 0)
+                    result.append("\n\t\t\t}\n");
+                if (has_identifier)
+                {
+                    result.append("\t\t\t");
+                    result.append(entry.block_identifier);
+                    result.append(" {\n");
+                }
+                active_block_identifier = entry.block_identifier;
+            }
+            
+            result.append("\t\t\t");
+            if (active_block_identifier.length() > 0)
+                result.append("\t");
+        
+            if (entry.class_name == "")
+                result.append(entry.tag + " { " + entry.definition + " }");
+            else
+                result.append(entry.tag + "." + entry.class_name + " { " + entry.definition + " }");
+            result.append("\n");
+                
+        }
+        if (active_block_identifier.length() > 0)
+        {
+        	active_block_identifier = "";
+            result.append("\n\t\t\t}\n");
+        }
+        
+        if (true)
+        {
+            result.append("\t\t</style>\n");
+        }
+    }
+    
+    
     return result;
 }
 
@@ -1752,7 +1945,7 @@ buffer PageGenerate(Page page_in)
 	
 	//Body:
 	result.append("\t");
-	result.append(HTMLGenerateTagPrefix("body", page_in.body_attributes));
+	result.HTMLAppendTagPrefix("body", page_in.body_attributes);
 	result.append("\n\t\t");
 	result.append(page_in.body_contents);
 	result.append("\n");
@@ -1794,9 +1987,14 @@ void PageSetTitle(Page page_in, string title)
 void PageAddCSSClass(Page page_in, string tag, string class_name, string definition, int importance, string block_identifier)
 {
     //print_html("Adding block_identifier \"" + block_identifier + "\"");
-    if (!(page_in.defined_css_blocks contains block_identifier))
-        page_in.defined_css_blocks[block_identifier] = CSSBlockMake(block_identifier);
-    page_in.defined_css_blocks[block_identifier].defined_css_classes.listAppend(CSSEntryMake(tag, class_name, definition, importance));
+    if (false) //deprecated
+    {
+        if (!(page_in.defined_css_blocks contains block_identifier))
+            page_in.defined_css_blocks[block_identifier] = CSSBlockMake(block_identifier);
+        page_in.defined_css_blocks[block_identifier].defined_css_classes.listAppend(CSSEntryMake(tag, class_name, definition, importance, block_identifier));
+	}
+    
+    page_in.defined_css_classes.listAppend(CSSEntryMake(tag, class_name, definition, importance, block_identifier));
 }
 
 void PageAddCSSClass(Page page_in, string tag, string class_name, string definition, int importance)
@@ -1922,19 +2120,23 @@ void PageInit()
 	
 	//Simple table lines:
 	PageAddCSSClass("div", "r_stl_container", "display:table;");
-	PageAddCSSClass("div", "r_stl_container_row", "display:table-row;");
-    PageAddCSSClass("div", "r_stl_entry", "padding:0px;margin:0px;display:table-cell;");
-    PageAddCSSClass("div", "r_stl_spacer", "width:1em;");
+	PageAddCSSClass("div", "r_stl_row", "display:table-row;");
+    PageAddCSSClass("div", "r_stl_entry", "padding:0px;margin:0px;display:table-cell;padding-top:1px;padding-right:1em;border-bottom:1px solid var(--line_colour);padding-bottom:1px;");
+    PageAddCSSClass("div", "r_stl_entry_last_column", "padding-right:0em;");
+    PageAddCSSClass("div", "r_stl_entry_last_row", "border-bottom:initial;padding-bottom:0px;");
+    
+    //PageAddCSSClass("div", "r_stl_spacer", "width:1em;");
 }
 
 
 
 string HTMLGenerateIndentedText(string text, string width)
 {
-	if (__use_table_based_layouts) //table-based layout
+	/*if (__use_table_based_layouts) //table-based layout
 		return "<table cellpadding=0 cellspacing=0 width=100%><tr>" + HTMLGenerateTagWrap("td", "", mapMake("style", "width:" + width + ";")) + "<td>" + text + "</td></tr></table>";
-	else //div-based layout:
-		return HTMLGenerateDivOfClass(text, "r_indention");
+	else //div-based layout:*/
+	
+    return HTMLGenerateDivOfClass(text, "r_indention");
 }
 
 string HTMLGenerateIndentedText(string [int] text)
@@ -1966,7 +2168,7 @@ string HTMLGenerateSimpleTableLines(string [int][int] lines, boolean dividers_ar
 		max_columns = max(max_columns, lines[i].count());
 	}
 	
-	if (__use_table_based_layouts)
+	/*if (__use_table_based_layouts)
 	{
 		//table-based layout:
 		result.append("<table style=\"margin-right: 10px; width:100%;\" cellpadding=0 cellspacing=0>");
@@ -2008,17 +2210,18 @@ string HTMLGenerateSimpleTableLines(string [int][int] lines, boolean dividers_ar
 	
 		result.append("</table>");
 	}
-	else
+	else*/
+	if (true)
 	{
 		//div-based layout:
-        int intra_i = 0;
-        int last_cell_count = 0;
-        result.append(HTMLGenerateTagPrefix("div", mapMake("class", "r_stl_container")));
+        //int intra_i = 0;
+        //int last_cell_count = 0;
+        result.HTMLAppendTagPrefix("div", "class", "r_stl_container");
 		foreach i in lines
 		{
-            if (intra_i > 0)
+            /*if (intra_i > 0)
             {
-                result.append(HTMLGenerateTagPrefix("div", mapMake("class", "r_stl_container_row")));
+                result.HTMLAppendTagPrefix("div", "class", "r_stl_row");
                 for i from 1 to last_cell_count //no colspan with display:table, generate extra (zero-padding, zero-margin) cells:
                 {
                     string separator = "";
@@ -2026,29 +2229,34 @@ string HTMLGenerateSimpleTableLines(string [int][int] lines, boolean dividers_ar
                         separator = "<hr>";
                     else
                         separator = "<hr style=\"opacity:0\">"; //laziness - generate an invisible HR, so there's still spacing
-                    result.append(HTMLGenerateDivOfClass(separator, "r_stl_entry"));
+                    result.HTMLAppendDivOfClass(separator, "r_stl_entry");
                 }
                 result.append("</div>");
                 last_cell_count = 0;
-            }
-            result.append(HTMLGenerateTagPrefix("div", mapMake("class", "r_stl_container_row")));
-            int intra_j = 0;
+            }*/
+            result.HTMLAppendTagPrefix("div", "class", "r_stl_row");
+            //int intra_j = 0;
 			foreach j in lines[i]
 			{
 				string entry = lines[i][j];
-                if (intra_j > 0)
+                /*if (intra_j > 0)
                 {
-                    result.append(HTMLGenerateDivOfClass("", "r_stl_entry r_stl_spacer"));
-                    last_cell_count += 1;
-                }
-				result.append(HTMLGenerateDivOfClass(entry, "r_stl_entry"));
-                last_cell_count += 1;
+                    //result.HTMLAppendDivOfClass("", "r_stl_entry r_stl_spacer");
+                    //last_cell_count += 1;
+                }*/
+                string class_name = "r_stl_entry";
+                if (j == lines[i].count() - 1)
+                	class_name += " r_stl_entry_last_column";
+                if (i == lines.count() - 1)
+                	class_name += " r_stl_entry_last_row";
+				result.HTMLAppendDivOfClass(entry, class_name);
+                //last_cell_count += 1;
                 
-                intra_j += 1;
+                //intra_j += 1;
 			}
 			
             result.append("</div>");
-            intra_i += 1;
+            //intra_i += 1;
 		}
         result.append("</div>");
 	}
@@ -2582,10 +2790,17 @@ string slot_to_plural_string(slot s)
     return s.slot_to_string();
 }
 
-
 string format_today_to_string(string desired_format)
 {
     return format_date_time("yyyyMMdd", today_to_string(), desired_format);
+    //We tried this, and instead at 7:51AM local time, it claimed the day was yesterday. I don't get it either.
+    //return format_date_time("yyyyMMdd hh:mm:ss z", today_to_string() + " " + time_to_string(), desired_format);
+}
+//this messes with your timezone, because why wouldn't it?
+string format_intraday_time_to_string(string desired_format)
+{
+    //return format_date_time("hh:mm:ss z", time_to_string(), desired_format);
+    return format_date_time("hh:mm:ss", time_to_string(), desired_format); //omit time zone, because give it a time zone and suddenly it decides to be Difficult.
 }
 
 
@@ -4001,6 +4216,11 @@ void unlockMartiniHose()
 	actionSetDialsTo(dial_configuration);
 	actionSetHandleTo(true);
 	actionPressLeftActuator();
+	if (!__state.martini_hose_unlocked)
+	{
+		print("Unable to unlock martini hose for unknown reasons.", "red");
+        return;
+	}
 }
 
 void unlockButtons()
@@ -6707,7 +6927,7 @@ buffer generateFirstText()
     if (!__state.right_drawer_unlocked || __setting_debug)
     {
         string reward = "Three exploding cigars";
-        if (my_path() == "License to Adventure")
+        if (my_path().id == 30) //LTA
             reward = "Minions-be-gone";
         out2.append(HTMLGenerateTagWrap("div", "Open right drawer " + HTMLGenerateSpanOfClass("(1)", "briefcase_subtext") + "<br>" + HTMLGenerateSpanOfClass(reward, "briefcase_subtext"), mapMake("class", "r_centre briefcase_entry briefcase_button", "onclick", "executeBriefcaseCommand('right');")));
     }
@@ -6970,7 +7190,7 @@ buffer generateBuffText()
             effect buff_effect = buffs_effects[slot_id][fake_id];
             string command = buffs_commands[slot_id][fake_id];
             int buff_id = __spy_effect_to_buff_id[buff_effect];
-            if (my_path() == "G-Lover" && !buff_effect.contains_text("g") && !buff_effect.contains_text("G") && buff_effect != $effect[none]) continue;
+            if (my_path().id == 33 && !buff_effect.contains_text("g") && !buff_effect.contains_text("G") && buff_effect != $effect[none]) continue; //g-lover
             boolean known = (__file_state["tab effect " + buff_id] != "");
             Tab t = TabFromFileBuff(buff_id);
             boolean within_configuration = known && (__state.tab_configuration[t.id] == t.length);
