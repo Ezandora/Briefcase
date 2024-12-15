@@ -3,7 +3,7 @@ since r18110;
 //Usage: "briefcase help" in the graphical CLI.
 //Also includes a relay override.
 
-string __briefcase_version = "2.1.10";
+string __briefcase_version = "2.1.11";
 //Debug settings:
 boolean __setting_enable_debug_output = false;
 boolean __setting_debug = false;
@@ -2716,12 +2716,13 @@ boolean numberIsInRangeInclusive(int v, int min, int max)
 }
 
 
-buffer to_buffer(string str)
+//now built-in:
+/*buffer to_buffer(string str)
 {
 	buffer result;
 	result.append(str);
 	return result;
-}
+}*/
 
 buffer copyBuffer(buffer buf)
 {
@@ -3463,7 +3464,7 @@ BriefcaseState parseBriefcaseStatePrivate(buffer page_text, int action_type, int
 	
 	//Parse results:
 	//string results_string = page_text.group_string("<b>Results:</b></td></tr><tr><td style=\"padding: 5px; border: 1px solid blue;\"><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
-    string results_string = page_text.group_string("<b>Results:</b></td></tr><tr><td[^>]*><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
+    string results_string = page_text.group_string("<b[^>]*>Results:</b></td></tr><tr><td[^>]*><center><table><tr><td>(.*?)</td></tr></table>")[0][1];
 	
 	string [int] results = split_string(results_string, "<br>");
 	
